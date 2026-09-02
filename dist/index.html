@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bloom — Rules</title>
+  <style>
+    :root {
+      --bg: #fafafa; --fg: #1a1a1a; --muted: #6b6b6b; --border: #e4e4e4;
+      --accent: #2563eb; --danger: #dc2626;
+      --row-alt: #f5f5f5; --row-hover: #ededed;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: var(--font); font-size: 13px; color: var(--fg); background: var(--bg); }
+    body { display: flex; flex-direction: column; }
+    header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+    header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+    header .spacer { flex: 1; }
+    button { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 5px 12px; font: inherit; cursor: pointer; }
+    button:hover { background: var(--row-hover); }
+    button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+    button.primary:hover { background: #1d4ed8; }
+    button.danger { color: var(--danger); border-color: var(--danger); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .settings { padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--row-alt); flex: 0 0 auto; }
+    .settings label { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .settings label > span { min-width: 160px; color: var(--muted); }
+    .settings textarea { flex: 1; min-height: 32px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-family: ui-monospace, "Menlo", monospace; font-size: 12px; }
+
+    main { flex: 1; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+    th { background: var(--row-alt); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); position: sticky; top: 0; }
+    tbody tr:hover { background: var(--row-hover); }
+    tbody tr.disabled { opacity: 0.5; }
+
+    .trigger { font-family: ui-monospace, "Menlo", monospace; font-weight: 600; min-width: 120px; }
+    .replacement { flex: 1; color: var(--muted); }
+    .replacement .nbsp { color: #a0a0a0; }
+
+    .status { padding: 6px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); flex: 0 0 auto; display: flex; gap: 16px; }
+    .status .ok { color: #16a34a; }
+    .status .err { color: var(--danger); }
+
+    .edit-row input { width: 100%; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font: inherit; }
+    .edit-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    .edit-row .err { color: var(--danger); font-size: 11px; padding: 2px 0; }
+
+    .empty { padding: 40px; text-align: center; color: var(--muted); }
+
+    .arrow { color: var(--muted); padding: 0 6px; font-family: ui-monospace, monospace; }
+    .actions { white-space: nowrap; }
+    .actions button { padding: 3px 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Bloom — Rules</h1>
+    <span class="spacer"></span>
+    <button id="addBtn">+ Add rule</button>
+    <button id="importBtn">Import JSON</button>
+    <button id="exportBtn">Export JSON</button>
+    <button id="saveBtn" class="primary">Save</button>
+  </header>
+
+  <section class="settings">
+    <label>
+      <span>Start with Windows</span>
+      <input type="checkbox" id="autostartCheckbox" />
+    </label>
+    <label style="align-items:flex-start;">
+      <span>Blacklist<br /><small style="color:#a0a0a0">(one exe per line)</small></span>
+      <textarea id="blacklistBox" placeholder="KeePass.exe&#10;1password.exe&#10;Bitwarden.exe"></textarea>
+    </label>
+  </section>
+
+  <main>
+    <table id="rulesTable">
+      <thead>
+        <tr><th>Trigger</th><th></th><th>Replacement</th><th></th><th>Enabled</th><th></th><th></th></tr>
+      </thead>
+      <tbody id="rulesBody"></tbody>
+    </table>
+    <div id="emptyMsg" class="empty" hidden>No rules yet. Click <strong>+ Add rule</strong> to start.</div>
+  </main>
+
+  <div class="status">
+    <span id="statusRules">0 rules</span>
+    <span class="spacer" style="flex:1;"></span>
+    <span id="statusMsg" class="ok">Loaded</span>
+  </div>
+
+  <!-- Tauri IPC -->
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

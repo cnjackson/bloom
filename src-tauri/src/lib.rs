@@ -1,0 +1,84 @@
+//! Bloom — system-wide text replacement for Windows.
+//!
+//! This is the v0.1 entry point. It contains:
+//! - config store (load/save rules.json under %APPDATA%)
+//! - Tauri commands backing the rules editor UI
+//! - tray icon that opens the rules window
+//!
+//! The global keyboard hook and paste-back subsystems are not yet wired in
+//! (see `architecture.md` § Hook subsystem). Those will land in a
+//! follow-up once the install path + UI + persistence are proven end-to-end.
+
+mod commands;
+mod model;
+mod store;
+mod tray;
+
+use crate::model::Config;
+use std::sync::Mutex;
+
+/// Application state shared between commands and the tray.
+pub struct AppState {
+    pub config: Mutex<Config>,
+    /// Where on disk rules.json lives. Resolved on startup.
+    pub config_path: std::path::PathBuf,
+    /// A handle to the rules window once it's been opened.
+    pub main_window: Mutex<Option<tauri::WebviewWindow>>,
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    // Resolve %APPDATA%\bloom before we hand control to Tauri.
+    let config_dir = store::config_dir().expect("could not resolve APPDATA");
+    let config_path = store::config_path(&config_dir);
+
+    // Load the config strictly; bail with a panic + visible message if it
+    // is malformed. The Tauri default error handler will show this in the
+    // log; user-facing recovery happens via the rules editor once that
+    // loads (`load_or_default`).
+    let config = store::load_or_default(&config_path).unwrap_or_else(|e| {
+        eprintln!("bloom: failed to load config: {e}");
+        Config::default()
+    });
+
+    let state = AppState {
+        config: Mutex::new(config),
+        config_path,
+        main_window: Mutex::new(None),
+    };
+
+    tauri::Builder::default()
+        .manage(state)
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .setup(|app| {
+            tray::install(app)?;
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_config,
+            commands::add_rule,
+            commands::update_rule,
+            commands::delete_rule,
+            commands::toggle_rule,
+            commands::save_all,
+            commands::import_json,
+            commands::export_json,
+        ])
+        .on_window_event(|window, event| {
+            // Hide instead of close when the user clicks the X. The process
+            // stays alive in the tray; quitting requires ending it from Task
+            // Manager in v0.1.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
