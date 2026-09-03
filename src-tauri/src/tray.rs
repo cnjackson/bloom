@@ -26,22 +26,23 @@ fn tray_icon_rgba() -> Image<'static> {
             buf.extend_from_slice(&[0x1A, 0x63, 0xEB, 0xFF]);
         }
         Image::new_owned(buf, W, H)
-    }
-    // Read from disk at runtime. In the dev build this is the path
-    // under src-tauri/; in production Tauri-resources it lives in the
-    // install dir. Falling back to the solid square here is fine — if
-    // the icon's missing, we still want the app to start.
-    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("icons").join("icon.png");
-    if let Ok(bytes) = std::fs::read(&here) {
-        if let Ok(img) = image::load_from_memory(&bytes) {
-            let rgba = img.to_rgba8();
-            let (w, h) = (rgba.width(), rgba.height());
-            return Image::new_owned(rgba.into_raw(), w, h);
+            }
+            // Tray icons are rendered by Windows at ~32x32 (16-48 DPI-dependent).
+            // Use the hand-crafted 32 master — the 1024 detail master's downsample
+            // reads as a tiny soft thumbnail next to crisp app icons. Falling back
+            // to the solid square if the asset is missing.
+            let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("icons")
+                .join("icon-32.png");
+            if let Ok(bytes) = std::fs::read(&here) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let rgba = img.to_rgba8();
+                    let (w, h) = (rgba.width(), rgba.height());
+                    return Image::new_owned(rgba.into_raw(), w, h);
+                }
+            }
+            fallback()
         }
-    }
-    fallback()
-}
 
 /// Install a tray icon with a single-click → open window behaviour.
 /// Caller wires this in tauri::Builder::setup().
