@@ -315,28 +315,47 @@ async function saveAll() {
 }
 
 async function importJson() {
-  // No native file picker for v1; ask user for a path.
-  const path = prompt("Path to import from:");
-  if (!path) return;
+  const hint =
+    "Paste the path to a rules.json file exported from Bloom or " +
+    "hand-written with the schema:\n" +
+    "{ version: 1, start_with_windows: bool, blacklist: [exe.exe], " +
+    "scoped_to: null|[exe.exe], theme: { mode: \"dark|light|system\" }, " +
+    "rules: [{ id, trigger, replacement, enabled, created_at }] }\n\n" +
+    "Example: C:\\Users\\you\\Desktop\\bloom-rules.json";
+  const path = window.prompt(hint);
+  // Treat null (cancel) AND empty/whitespace (no entry) as "back out".
+  if (!path || !path.trim()) return;
   try {
-    const res = await invoke("import_json", { path });
-    state.rules = res.rules;
-    state.start_with_windows = res.start_with_windows;
-    state.blacklist = res.blacklist;
+    const res = await invoke("import_json", { path: path.trim() });
+    state.rules = res.rules ?? [];
+    state.start_with_windows = res.start_with_windows ?? true;
+    state.blacklist = res.blacklist ?? [];
+    state.scoped_to = res.scoped_to ?? null;
+    state.theme = res.theme ?? { mode: "dark" };
     state.dirty = true;
     render();
   } catch (e) {
-    alert(`Import failed: ${e}`);
+    alert(`Import failed:\n${e}\n\nCheck the path is correct and the file is valid rules.json.`);
   }
 }
 
 async function exportJson() {
-  const path = prompt("Path to export to (leave blank for default):", "");
+  const hint =
+    "Path to write the rules to. Leave blank to save as bloom-rules.json " +
+    "in your Downloads folder.\n\n" +
+    "Example: C:\\Users\\you\\Desktop\\bloom-rules-backup.json";
+  const path = window.prompt(hint, "");
+  // null (cancel) and empty/whitespace (no path) both = use default;
+  // but since `prompt()` returns null only on Cancel, treat empty as "use default"
+  // and null as "don't export at all" so Cancel doesn't silently write somewhere.
+  if (path === null) return;
   try {
-    await invoke("export_json", { path: path || null });
-    alert("Exported.");
+    const target = await invoke("export_json", {
+      path: path && path.trim() ? path.trim() : null,
+    });
+    alert(`Exported to:\n${target}`);
   } catch (e) {
-    alert(`Export failed: ${e}`);
+    alert(`Export failed:\n${e}`);
   }
 }
 
