@@ -255,7 +255,7 @@ async function saveAll() {
   const blacklist = $("blacklistBox").value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   try {
     const res = await invoke("save_all", {
-      start_with_windows: autostart,
+      startWithWindows: autostart,
       blacklist,
     });
     state.start_with_windows = res.start_with_windows;
