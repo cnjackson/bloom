@@ -12,19 +12,35 @@ use tauri::{
     App, Manager,
 };
 
-/// 16x16 BGRA-solid tray icon embedded as raw bytes so Bloom doesn't
-/// need to ship a parsed PNG/ICO asset for v0.1. The icon is a flat
-/// color block; replace by setting `tray-icon.rs`'s `Image::from_path`
-/// once a real `bloom.ico` lands in `icons/`.
+/// Load the tray icon from `icons/icon.png` at runtime. Tauri includes
+/// the icon assets under `tauri::path::resource_dir`, which lands at the
+/// install location in MSI bundles. Falls back to a small solid-blue
+/// placeholder (so the app keeps running if the asset is missing).
 fn tray_icon_rgba() -> Image<'static> {
-    const W: u32 = 16;
-    const H: u32 = 16;
-    let mut buf: Vec<u8> = Vec::with_capacity((W * H * 4) as usize);
-    for _ in 0..(W * H) {
-        // BGRA: deep blue (same as --accent in the UI)
-        buf.extend_from_slice(&[0x1A, 0x63, 0xEB, 0xFF]);
+    // 16x16 BGRA solid-blue fallback (kept as the same blue we used v0.1)
+    fn fallback() -> Image<'static> {
+        const W: u32 = 16;
+        const H: u32 = 16;
+        let mut buf: Vec<u8> = Vec::with_capacity((W * H * 4) as usize);
+        for _ in 0..(W * H) {
+            buf.extend_from_slice(&[0x1A, 0x63, 0xEB, 0xFF]);
+        }
+        Image::new_owned(buf, W, H)
     }
-    Image::new_owned(buf, W, H)
+    // Read from disk at runtime. In the dev build this is the path
+    // under src-tauri/; in production Tauri-resources it lives in the
+    // install dir. Falling back to the solid square here is fine — if
+    // the icon's missing, we still want the app to start.
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("icons").join("icon.png");
+    if let Ok(bytes) = std::fs::read(&here) {
+        if let Ok(img) = image::load_from_memory(&bytes) {
+            let rgba = img.to_rgba8();
+            let (w, h) = (rgba.width(), rgba.height());
+            return Image::new_owned(rgba.into_raw(), w, h);
+        }
+    }
+    fallback()
 }
 
 /// Install a tray icon with a single-click → open window behaviour.
