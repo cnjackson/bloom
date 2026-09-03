@@ -183,6 +183,9 @@
       display: grid; place-items: center;
       backdrop-filter: blur(4px);
     }
+    /* `display: grid` above overrides the `hidden` attribute, so we
+       have to explicitly add it back as a !important-equivalent rule. */
+    .modal-backdrop[hidden] { display: none; }
     .modal {
       background: var(--surface);
       border: 1px solid var(--border);
