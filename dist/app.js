@@ -218,7 +218,8 @@ function beginEdit(r) {
 
 function validateRule(trigger, replacement) {
   if (!trigger) return "Trigger cannot be empty.";
-  if (/\s/.test(trigger)) return "Trigger cannot contain whitespace.";
+  // Multi-word triggers allowed (Mac parity); normalized by the backend
+  // to trimmed + single internal spaces.
   if (trigger.length > 32) return "Trigger too long (max 32).";
   if (replacement.length > 4096) return "Replacement too long (max 4096).";
   return null;

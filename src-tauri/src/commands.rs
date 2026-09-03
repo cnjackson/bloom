@@ -67,7 +67,7 @@ pub fn add_rule(state: State<'_, AppState>, mut rule: Rule) -> Result<Config, St
     if rule.created_at.is_empty() {
         rule.created_at = Utc::now().to_rfc3339();
     }
-    validate_rule_fields(&rule)?;
+    validate_rule_fields(&mut rule)?;
     let mut cfg = state.config.lock().unwrap();
     if cfg.rules.iter().any(|r| r.trigger.eq_ignore_ascii_case(&rule.trigger)) {
         return Err(format!("duplicate trigger: {:?}", rule.trigger));
@@ -88,7 +88,7 @@ pub fn update_rule(
     if rule.created_at.is_empty() {
         rule.created_at = Utc::now().to_rfc3339();
     }
-    validate_rule_fields(&rule)?;
+    validate_rule_fields(&mut rule)?;
     let mut cfg = state.config.lock().unwrap();
     let pos = store::find_index(&cfg, &id).ok_or_else(|| err(format!("rule not found: {id}")))?;
     if cfg.rules.iter().enumerate().any(|(i, r)| {
@@ -158,16 +158,16 @@ pub fn export_json(
 
 // ---------- helpers ----------
 
-fn validate_rule_fields(rule: &Rule) -> Result<(), String> {
-    if rule.id.is_empty() {
-        return Err("rule id cannot be empty".into());
-    }
+fn validate_rule_fields(rule: &mut Rule) -> Result<(), String> {
+    // Normalize: trim + collapse internal whitespace (Mac-parity
+    // multi-word triggers; "answer  short" == "answer short").
+    rule.trigger = rule.trigger.split_whitespace().collect::<Vec<_>>().join(" ");
     if rule.trigger.is_empty() {
         return Err("trigger cannot be empty".into());
     }
-    if rule.trigger.chars().any(|c| c.is_whitespace()) {
-        return Err("trigger cannot contain whitespace".into());
-    }
+    // Multi-word triggers are allowed (macOS Text Replacement parity).
+    // Only trim-checked non-empty + length-capped; matching happens on
+    // token boundaries in the hook (v1.1).
     if rule.trigger.chars().count() > MAX_TRIGGER_LEN {
         return Err(format!("trigger too long (max {})", MAX_TRIGGER_LEN));
     }

@@ -65,9 +65,16 @@ pub fn validate(cfg: &Config) -> Result<(), RulesError> {
         if r.trigger.is_empty() {
             return Err(RulesError::Validation("trigger cannot be empty".into()));
         }
-        if r.trigger.chars().any(|c| c.is_whitespace()) {
+        // Multi-word triggers allowed (Mac parity). Normalize: no
+        // leading/trailing whitespace, collapse internal runs to single
+        // spaces so "answer  short" and "answer short" are the same rule.
+        let normalized = r.trigger
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if normalized != r.trigger {
             return Err(RulesError::Validation(format!(
-                "trigger cannot contain whitespace: {:?}",
+                "trigger must be trimmed with single internal spaces: {:?}",
                 r.trigger
             )));
         }
