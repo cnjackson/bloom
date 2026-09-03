@@ -22,8 +22,6 @@ pub struct AppState {
     pub config: Mutex<Config>,
     /// Where on disk rules.json lives. Resolved on startup.
     pub config_path: std::path::PathBuf,
-    /// A handle to the rules window once it's been opened.
-    pub main_window: Mutex<Option<tauri::WebviewWindow>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -44,7 +42,6 @@ pub fn run() {
     let state = AppState {
         config: Mutex::new(config),
         config_path,
-        main_window: Mutex::new(None),
     };
 
     tauri::Builder::default()
@@ -53,7 +50,7 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
-        ))
+        )) // LaunchAgent arg is a no-op on Windows; plugin API requires it.
         .setup(|app| {
             tray::install(app)?;
             Ok(())
@@ -63,7 +60,6 @@ pub fn run() {
             commands::add_rule,
             commands::update_rule,
             commands::delete_rule,
-            commands::toggle_rule,
             commands::save_all,
             commands::import_json,
             commands::export_json,

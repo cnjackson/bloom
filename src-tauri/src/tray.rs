@@ -45,7 +45,7 @@ pub fn install(app: &mut App) -> tauri::Result<()> {
             "quit" => {
                 app.exit(0);
             }
-            "show" | _ => {
+            _ => {
                 show_or_focus_main(app);
             }
         })

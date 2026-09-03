@@ -49,10 +49,6 @@ impl Default for Config {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RulesError {
-    #[error("rule not found: {0}")]
-    RuleNotFound(String),
-    #[error("rule id mismatch")]
-    RuleIdMismatch,
     #[error("invalid JSON: {0}")]
     Json(#[from] serde_json::Error),
     #[error("io: {0}")]

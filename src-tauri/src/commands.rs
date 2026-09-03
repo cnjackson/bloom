@@ -107,18 +107,6 @@ pub fn delete_rule(state: State<'_, AppState>, id: String) -> Result<Config, Str
     Ok(cfg.clone())
 }
 
-#[tauri::command]
-pub fn toggle_rule(
-    state: State<'_, AppState>,
-    id: String,
-    enabled: bool,
-) -> Result<Config, String> {
-    let mut cfg = state.config.lock().unwrap();
-    let pos = store::find_index(&cfg, &id).ok_or_else(|| err(format!("rule not found: {id}")))?;
-    cfg.rules[pos].enabled = enabled;
-    Ok(cfg.clone())
-}
-
 /// Persist the in-memory config to disk. Called whenever the user hits
 /// Save, or implicitly after every mutation in v2 (currently explicit).
 #[tauri::command]
