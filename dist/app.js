@@ -11,6 +11,7 @@ const state = {
   start_with_windows: true,
   blacklist: [],
   scoped_to: null,
+  theme: { mode: "dark" },
   dirty: false,
   newRuleId: 0,
 };
@@ -19,6 +20,41 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const rulesBody = $("rulesBody");
 const emptyMsg = $("emptyMsg");
+
+function applyTheme(mode) {
+  const m = (mode === "light" || mode === "dark" || mode === "system") ? mode : "dark";
+  document.documentElement.setAttribute("data-theme", m);
+  state.theme.mode = m;
+  // Reflect in the modal's radios (no-op if modal not yet built)
+  for (const r of document.querySelectorAll('input[name="theme"]')) {
+    r.checked = r.value === m;
+  }
+}
+
+function openSettings() {
+  $("settingsModal").hidden = false;
+}
+
+function closeSettings() {
+  $("settingsModal").hidden = true;
+}
+
+async function saveTheme(mode) {
+  applyTheme(mode);
+  // Theme persists with the same save_all endpoint. Send a minimal payload
+  // (current values) so the schema fields stay consistent on disk.
+  try {
+    const res = await invoke("save_all", {
+      startWithWindows: $("autostartCheckbox").checked,
+      blacklist: state.blacklist,
+      scopedTo: state.scoped_to,
+      theme: state.theme,
+    });
+    state.theme = res.theme;
+  } catch (e) {
+    console.warn("saveTheme:", e);
+  }
+}
 
 function escape(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -260,15 +296,17 @@ async function saveAll() {
   // Empty box = None (expand everywhere); non-empty = explicit list
   const scopedTo = scopedToText ? scopedToText.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : null;
   try {
-    const res = await invoke("save_all", {
-      startWithWindows: autostart,
-      blacklist,
-      scopedTo,
-    });
-    state.start_with_windows = res.start_with_windows;
-    state.blacklist = res.blacklist;
-    state.scoped_to = res.scoped_to;
-    state.rules = res.rules;
+      const res = await invoke("save_all", {
+        startWithWindows: autostart,
+        blacklist,
+        scopedTo,
+        theme: state.theme,
+      });
+      state.start_with_windows = res.start_with_windows;
+      state.blacklist = res.blacklist;
+      state.scoped_to = res.scoped_to;
+      state.theme = res.theme;
+      state.rules = res.rules;
     state.dirty = false;
     render();
   } catch (e) {
@@ -307,6 +345,17 @@ $("addBtn").addEventListener("click", addRule);
 $("importBtn").addEventListener("click", importJson);
 $("exportBtn").addEventListener("click", exportJson);
 $("saveBtn").addEventListener("click", saveAll);
+$("settingsBtn").addEventListener("click", openSettings);
+$("settingsClose").addEventListener("click", closeSettings);
+$("settingsModal").addEventListener("click", (e) => {
+  if (e.target === $("settingsModal")) closeSettings(); // backdrop click
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("settingsModal").hidden) closeSettings();
+});
+for (const r of document.querySelectorAll('input[name="theme"]')) {
+  r.addEventListener("change", (e) => saveTheme(e.target.value));
+}
 $("autostartCheckbox").addEventListener("change", () => { state.dirty = true; render(); });
 $("blacklistBox").addEventListener("input", () => { state.dirty = true; render(); });
 $("scopedToBox").addEventListener("input", () => { state.dirty = true; render(); });
@@ -318,7 +367,9 @@ $("scopedToBox").addEventListener("input", () => { state.dirty = true; render();
     state.rules = cfg.rules ?? [];
     state.start_with_windows = cfg.start_with_windows ?? true;
     state.scoped_to = cfg.scoped_to ?? null;
+    state.theme = cfg.theme ?? { mode: "dark" };
   $("scopedToBox").value = (state.scoped_to ?? []).join("\n");
+    applyTheme(state.theme.mode); // apply BEFORE render so colors load first
     state.dirty = false;
     render();
   } catch (e) {

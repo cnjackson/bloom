@@ -12,7 +12,7 @@ use std::{fs, path::PathBuf};
 use chrono::Utc;
 use tauri::{AppHandle, Manager, State};
 
-use crate::model::{Config, Rule, MAX_REPLACEMENT_LEN, MAX_TRIGGER_LEN};
+use crate::model::{Config, Rule, Theme, MAX_REPLACEMENT_LEN, MAX_TRIGGER_LEN};
 use crate::{AppState, store};
 
 /// Generate a fresh ULID-style id: 10-char millisecond timestamp prefix
@@ -117,11 +117,15 @@ pub fn save_all(
     start_with_windows: bool,
     blacklist: Vec<String>,
     scoped_to: Option<Vec<String>>,
+    theme: Option<Theme>,
 ) -> Result<Config, String> {
     let mut cfg = state.config.lock().unwrap();
     cfg.start_with_windows = start_with_windows;
     cfg.blacklist = blacklist;
     cfg.scoped_to = scoped_to;
+    if let Some(t) = theme {
+        cfg.theme = t;
+    }
     store::save(&state.config_path, &cfg).map_err(err)?;
     apply_autostart(&app, start_with_windows).map_err(err)?;
     Ok(cfg.clone())

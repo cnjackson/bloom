@@ -23,6 +23,15 @@ pub struct Rule {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Theme {
+    /// "dark" | "light" | "system". The UI layer also accepts "system" and
+    /// follows the OS appearance. Currently only "dark" + "light" are
+    /// styled; "system" maps to dark until light tokens are wired into
+    /// system appearance listeners.
+    pub mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
     pub version: u32,
     pub start_with_windows: bool,
@@ -35,7 +44,13 @@ pub struct Config {
     /// this list is an additional app-wide filter.
     #[serde(default)]
     pub scoped_to: Option<Vec<String>>,
+    #[serde(default = "default_theme")]
+    pub theme: Theme,
     pub rules: Vec<Rule>,
+}
+
+fn default_theme() -> Theme {
+    Theme { mode: "dark".into() }
 }
 
 impl Default for Config {
@@ -49,6 +64,7 @@ impl Default for Config {
                 "Bitwarden.exe".into(),
             ],
             scoped_to: None,
+            theme: default_theme(),
             rules: vec![],
         }
     }

@@ -56,6 +56,14 @@ pub fn validate(cfg: &Config) -> Result<(), RulesError> {
             cfg.version, SCHEMA_VERSION
         )));
     }
+    // Theme is open-ended; accept the three we ship, reject anything else
+    // silently so a future schema can add more without breaking older saves.
+    if !matches!(cfg.theme.mode.as_str(), "dark" | "light" | "system") {
+        return Err(RulesError::Validation(format!(
+            "unsupported theme mode: {:?}",
+            cfg.theme.mode
+        )));
+    }
     let mut seen_ids = std::collections::HashSet::new();
     let mut seen_triggers = std::collections::HashSet::new();
     for r in &cfg.rules {
