@@ -185,6 +185,16 @@ fn match_trigger(buffer: &str, rules: &[Rule]) -> Option<Rule> {
     if buffer.is_empty() {
         return None;
     }
+    // The boundary character (whitespace we just typed) is part of the
+    // buffer but not part of any trigger. Strip it for matching; require
+    // that it BE there (otherwise we matched mid-word).
+    if !buffer.ends_with(char::is_whitespace) {
+        return None;
+    }
+    let head = &buffer[..buffer.len() - 1];
+    if head.is_empty() {
+        return None;
+    }
     for r in rules {
         if !r.enabled {
             continue;
@@ -193,10 +203,10 @@ fn match_trigger(buffer: &str, rules: &[Rule]) -> Option<Rule> {
         if trig.is_empty() {
             continue;
         }
-        if buffer.len() >= trig.len()
-            && buffer[buffer.len() - trig.len()..].eq_ignore_ascii_case(&trig)
+        if head.len() >= trig.len()
+            && head[head.len() - trig.len()..].eq_ignore_ascii_case(&trig)
         {
-            let before = &buffer[..buffer.len() - trig.len()];
+            let before = &head[..head.len() - trig.len()];
             if before.is_empty() || before.ends_with(char::is_whitespace) {
                 return Some(r.clone());
             }
