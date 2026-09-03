@@ -37,14 +37,15 @@ function render() {
     }
   }
   $("autostartCheckbox").checked = !!state.start_with_windows;
-    $("scopedToBox").value = (state.scoped_to ?? []).join("\n");
-    // Never overwrite a focused input — it resets the caret and makes
-    // multiline editing impossible. Value refresh happens on load and on
-    // import instead.
-    const bl = $("blacklistBox");
-    if (document.activeElement !== bl && document.activeElement !== $("autostartCheckbox")) {
-      bl.value = (state.blacklist ?? []).join("\n");
-    }
+  // Never overwrite a focused input: it resets the caret and breaks editing.
+  const bl = $("blacklistBox");
+  const sl = $("scopedToBox");
+  if (document.activeElement !== bl && document.activeElement !== $("autostartCheckbox") && document.activeElement !== sl) {
+    bl.value = (state.blacklist ?? []).join("\n");
+  }
+  if (document.activeElement !== sl && document.activeElement !== $("autostartCheckbox") && document.activeElement !== bl) {
+    sl.value = (state.scoped_to ?? []).join("\n");
+  }
   $("statusRules").textContent = `${state.rules.length} rule${state.rules.length === 1 ? "" : "s"}`;
   $("saveBtn").disabled = !state.dirty;
   $("statusMsg").textContent = state.dirty ? "Modified" : "Saved";
