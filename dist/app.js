@@ -46,7 +46,8 @@ function render() {
   $("statusRules").textContent = `${state.rules.length} rule${state.rules.length === 1 ? "" : "s"}`;
   $("saveBtn").disabled = !state.dirty;
   $("statusMsg").textContent = state.dirty ? "Modified" : "Saved";
-  $("statusMsg").className = state.dirty ? "" : "ok";
+  $("statusMsg").style.color = state.dirty ? "var(--fg)" : "var(--ok)";
+  $("statusDot").className = state.dirty ? "dot dirty" : "dot";
 }
 
 function renderRow(r) {

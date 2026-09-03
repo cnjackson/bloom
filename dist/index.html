@@ -6,93 +6,205 @@
   <title>Bloom — Rules</title>
   <style>
     :root {
-      --bg: #fafafa; --fg: #1a1a1a; --muted: #6b6b6b; --border: #e4e4e4;
-      --accent: #2563eb; --danger: #dc2626;
-      --row-alt: #f5f5f5; --row-hover: #ededed;
-      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --bg: #0f1115;
+      --surface: #161a22;
+      --surface-2: #1c2130;
+      --border: #262c3b;
+      --fg: #e8eaf0;
+      --muted: #8b92a5;
+      --faint: #5c6375;
+      --accent: #6d8dff;
+      --accent-strong: #4f6ef7;
+      --danger: #ff6b6b;
+      --ok: #4ade80;
+      --radius: 10px;
+      --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      --mono: "Cascadia Code", "Cascadia Mono", ui-monospace, monospace;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; height: 100%; font-family: var(--font); font-size: 13px; color: var(--fg); background: var(--bg); }
-    body { display: flex; flex-direction: column; }
-    header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
-    header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: var(--font); font-size: 13px; color: var(--fg);
+      background: radial-gradient(1200px 800px at 80% -10%, #1a2030 0%, var(--bg) 55%);
+      display: flex; flex-direction: column; user-select: none;
+    }
+
+    /* ---------- header ---------- */
+    header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px 12px; flex: 0 0 auto;
+    }
+    .logo {
+      width: 26px; height: 26px; border-radius: 8px; flex: 0 0 auto;
+      background: linear-gradient(135deg, var(--accent) 0%, #9f6dff 100%);
+      display: grid; place-items: center;
+      font-weight: 700; font-size: 15px; color: #fff;
+      box-shadow: 0 2px 10px rgba(109, 141, 255, 0.35);
+    }
+    header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+    header .sub { color: var(--faint); font-size: 11px; margin-left: 2px; }
     header .spacer { flex: 1; }
-    button { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 5px 12px; font: inherit; cursor: pointer; }
-    button:hover { background: var(--row-hover); }
-    button.primary { background: var(--accent); color: white; border-color: var(--accent); }
-    button.primary:hover { background: #1d4ed8; }
-    button.danger { color: var(--danger); border-color: var(--danger); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    .settings { padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--row-alt); flex: 0 0 auto; }
-    .settings label { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-    .settings label > span { min-width: 160px; color: var(--muted); }
-    .settings textarea { flex: 1; min-height: 32px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-family: ui-monospace, "Menlo", monospace; font-size: 12px; }
+    button {
+      background: var(--surface-2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px 14px; font: inherit; font-size: 12.5px; cursor: pointer;
+      transition: background .12s, border-color .12s, transform .05s;
+    }
+    button:hover { background: #232a3d; border-color: #333c52; }
+    button:active { transform: translateY(1px); }
+    button.primary {
+      background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+      border-color: transparent; color: #fff; font-weight: 600;
+      box-shadow: 0 2px 12px rgba(79, 110, 247, 0.35);
+    }
+    button.primary:hover { filter: brightness(1.1); }
+    button.primary:disabled { opacity: .45; box-shadow: none; cursor: default; transform: none; }
+    button.danger { color: var(--danger); border-color: transparent; background: transparent; }
+    button.danger:hover { background: rgba(255, 107, 107, .12); border-color: rgba(255, 107, 107, .3); }
+    button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+    button.ghost:hover { color: var(--fg); background: var(--surface-2); }
 
-    main { flex: 1; overflow-y: auto; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--border); }
-    th { background: var(--row-alt); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); position: sticky; top: 0; }
-    tbody tr:hover { background: var(--row-hover); }
-    tbody tr.disabled { opacity: 0.5; }
+    /* ---------- settings ---------- */
+    .settings {
+      margin: 0 18px 4px; padding: 12px 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex; gap: 24px; align-items: flex-start; flex: 0 0 auto;
+    }
+    .settings .field { display: flex; flex-direction: column; gap: 6px; }
+    .settings .field.grow { flex: 1; }
+    .settings label.toggle {
+      display: flex; align-items: center; gap: 9px; cursor: pointer;
+      font-size: 12.5px; padding: 4px 0;
+    }
+    .settings .caption { font-size: 11px; color: var(--faint); }
+    input[type="checkbox"] {
+      appearance: none; width: 34px; height: 19px; border-radius: 999px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      position: relative; cursor: pointer; transition: background .15s; margin: 0;
+    }
+    input[type="checkbox"]::after {
+      content: ""; position: absolute; top: 2px; left: 2px;
+      width: 13px; height: 13px; border-radius: 50%;
+      background: var(--muted); transition: all .15s;
+    }
+    input[type="checkbox"]:checked { background: var(--accent-strong); border-color: var(--accent-strong); }
+    input[type="checkbox"]:checked::after { left: 17px; background: #fff; }
 
-    .trigger { font-family: ui-monospace, "Menlo", monospace; font-weight: 600; min-width: 120px; }
-    .replacement { flex: 1; color: var(--muted); }
-    .replacement .nbsp { color: #a0a0a0; }
+    textarea, input[type="text"], .edit-row input {
+      background: var(--surface-2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 7px;
+      padding: 6px 9px; font: inherit; font-size: 12.5px;
+      transition: border-color .12s, box-shadow .12s;
+    }
+    textarea:focus, input:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(109, 141, 255, 0.18);
+    }
+    textarea { resize: vertical; min-height: 56px; font-family: var(--mono); font-size: 11.5px; line-height: 1.5; }
 
-    .status { padding: 6px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); flex: 0 0 auto; display: flex; gap: 16px; }
-    .status .ok { color: #16a34a; }
-    .status .err { color: var(--danger); }
+    /* ---------- table ---------- */
+    main { flex: 1; overflow-y: auto; margin: 6px 18px 0; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    th {
+      text-align: left; padding: 8px 12px; position: sticky; top: 0; z-index: 1;
+      background: var(--bg); font-size: 10.5px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1px; color: var(--faint);
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid rgba(38, 44, 59, 0.55); }
+    tbody tr { transition: background .1s; }
+    tbody tr:hover { background: rgba(109, 141, 255, 0.05); }
+    tbody tr.disabled .trigger, tbody tr.disabled .repl { opacity: .4; }
 
-    .edit-row input { width: 100%; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font: inherit; }
-    .edit-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-    .edit-row .err { color: var(--danger); font-size: 11px; padding: 2px 0; }
+    .trigger {
+      font-family: var(--mono); font-size: 12.5px; font-weight: 600;
+      color: var(--accent); white-space: nowrap;
+    }
+    .arrow { color: var(--faint); width: 30px; text-align: center; font-family: var(--mono); }
+    .repl { color: var(--muted); user-select: text; }
+    .badge-warn { color: #fbbf24; margin-left: 6px; cursor: help; font-size: 12px; }
 
-    .empty { padding: 40px; text-align: center; color: var(--muted); }
+    .actions { white-space: nowrap; text-align: right; width: 110px; }
+    .actions button { padding: 3px 10px; font-size: 11.5px; }
 
-    .arrow { color: var(--muted); padding: 0 6px; font-family: ui-monospace, monospace; }
-    .actions { white-space: nowrap; }
-    .actions button { padding: 3px 8px; font-size: 12px; }
+    .edit-row input { width: 100%; font-family: inherit; }
+    .edit-row .err { color: var(--danger); font-size: 11px; margin-top: 4px; }
+    td.errcell { color: var(--danger); font-size: 11px; padding-top: 0; }
+
+    .empty {
+      padding: 48px 20px; text-align: center; color: var(--faint); font-size: 12.5px;
+    }
+    .empty .big { font-size: 26px; margin-bottom: 10px; opacity: .6; }
+
+    /* ---------- status bar ---------- */
+    .status {
+      flex: 0 0 auto; display: flex; align-items: center; gap: 14px;
+      padding: 9px 18px; margin: 6px 18px 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; font-size: 11.5px; color: var(--muted);
+    }
+    .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    .status .dot.dirty { background: #fbbf24; box-shadow: 0 0 6px #fbbf24; }
+    .status .spacer { flex: 1; }
+    .status .hint { color: var(--faint); }
+
+    /* scrollbars */
+    ::-webkit-scrollbar { width: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; border: 2px solid var(--bg); }
+    ::-webkit-scrollbar-thumb:hover { background: #333c52; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Bloom — Rules</h1>
+    <div class="logo">b</div>
+    <div>
+      <h1>Bloom</h1>
+    </div>
+    <span class="sub">text replacement</span>
     <span class="spacer"></span>
-    <button id="addBtn">+ Add rule</button>
-    <button id="importBtn">Import JSON</button>
-    <button id="exportBtn">Export JSON</button>
+    <button id="addBtn">＋ Add rule</button>
+    <button id="importBtn" class="ghost">Import</button>
+    <button id="exportBtn" class="ghost">Export</button>
     <button id="saveBtn" class="primary">Save</button>
   </header>
 
   <section class="settings">
-    <label>
-      <span>Start with Windows</span>
-      <input type="checkbox" id="autostartCheckbox" />
-    </label>
-    <label style="align-items:flex-start;">
-      <span>Blacklist<br /><small style="color:#a0a0a0">(one exe per line)</small></span>
-      <textarea id="blacklistBox" placeholder="KeePass.exe&#10;1password.exe&#10;Bitwarden.exe"></textarea>
-    </label>
+    <div class="field">
+      <label class="toggle">
+        <input type="checkbox" id="autostartCheckbox" />
+        Start with Windows
+      </label>
+      <span class="caption">Runs in the tray when you sign in</span>
+    </div>
+    <div class="field grow">
+      <span class="caption" style="margin-bottom:2px;">Blacklist — Bloom stays quiet in these apps (one exe per line)</span>
+      <textarea id="blacklistBox" placeholder="KeePass.exe&#10;1password.exe&#10;Bitwarden.exe" spellcheck="false"></textarea>
+    </div>
   </section>
 
   <main>
     <table id="rulesTable">
       <thead>
-        <tr><th>Trigger</th><th></th><th>Replacement</th><th></th><th>Enabled</th><th></th><th></th></tr>
+        <tr><th style="width:22%">Trigger</th><th></th><th>Replacement</th><th style="width:70px;">On</th><th></th><th></th></tr>
       </thead>
       <tbody id="rulesBody"></tbody>
     </table>
-    <div id="emptyMsg" class="empty" hidden>No rules yet. Click <strong>+ Add rule</strong> to start.</div>
+    <div id="emptyMsg" class="empty" hidden>
+      <div class="big">🌱</div>
+      No rules yet — click <strong>&nbsp;＋ Add rule&nbsp;</strong> and type a shortcut.
+    </div>
   </main>
 
   <div class="status">
+    <span class="dot" id="statusDot"></span>
     <span id="statusRules">0 rules</span>
-    <span class="spacer" style="flex:1;"></span>
-    <span id="statusMsg" class="ok">Loaded</span>
+    <span class="spacer"></span>
+    <span class="hint" id="statusHint">type a trigger, then space — expansion arrives in v1.1</span>
+    <span id="statusMsg">Saved</span>
   </div>
 
-  <!-- Tauri IPC -->
   <script type="module" src="./app.js"></script>
 </body>
 </html>
