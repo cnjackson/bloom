@@ -15,17 +15,16 @@ use tauri::{AppHandle, Manager, State};
 use crate::model::{Config, Rule, MAX_REPLACEMENT_LEN, MAX_TRIGGER_LEN};
 use crate::{AppState, store};
 
-/// Generate a fresh ULID-style id without pulling in the `ulid` crate.
-/// 26 chars, lexically sortable by timestamp at the front, random tail.
-/// Sufficient for v1; if we ever store >1000 rules per second on average,
-/// switch to the `ulid` crate for collision-safe generation.
+/// Generate a fresh ULID-style id: 10-char millisecond timestamp prefix
+/// (lexically sortable) + 16 random chars from the OS CSPRNG. Collision
+/// probability is negligible; no per-process counter needed.
 fn new_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
-    // Crockford base32 alphabet minus I/L/O/U to keep id readable.
+    // Crockford base32 alphabet minus I/L/O/U to keep ids readable.
     const ALPHABET: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
     let mut prefix = String::with_capacity(10);
     let mut v = ms;
@@ -33,13 +32,19 @@ fn new_id() -> String {
         prefix.push(ALPHABET[(v & 0x1F) as usize] as char);
         v >>= 5;
     }
-    let mut prefix_chars: Vec<char> = prefix.chars().rev().collect();
-    let mut id: String = prefix_chars.drain(..).collect();
-    // 16 random chars via time-derived entropy — good enough for v1.
-    let mut rng_state = ms.wrapping_mul(0x9E3779B97F4A7C15);
-    for _ in 0..16 {
-        rng_state = rng_state.wrapping_mul(0x5851F42D4C957F2D).wrapping_add(0x14057B7EF767814F);
-        id.push(ALPHABET[(rng_state >> 32) as usize & 0x1F] as char);
+    let mut id: String = prefix.chars().rev().collect();
+    // 80 bits of OS entropy for the tail.
+    let mut bytes = [0u8; 10];
+    getrandom::getrandom(&mut bytes).expect("CSPRNG unavailable");
+    let mut acc: u64 = 0;
+    let mut acc_bits = 0u32;
+    for &b in &bytes {
+        acc = (acc << 8) | b as u64;
+        acc_bits += 8;
+        while acc_bits >= 5 {
+            acc_bits -= 5;
+            id.push(ALPHABET[((acc >> acc_bits) & 0x1F) as usize] as char);
+        }
     }
     id
 }

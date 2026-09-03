@@ -95,8 +95,10 @@ pub fn validate(cfg: &Config) -> Result<(), RulesError> {
     Ok(())
 }
 
-/// Save the config: write to `rules.json.bak` first (rolling over the
-/// previous `.bak` if any — single-step backup), then to `rules.json`.
+/// Save the config atomically: copy the live file to `.bak` (single-step
+/// backup), then write a sibling `.tmp` and rename it over `rules.json`.
+/// Rename-within-directory is atomic on Windows, so a crash mid-write
+/// leaves either the old or the new file intact — never a truncated one.
 pub fn save(path: &Path, cfg: &Config) -> Result<(), RulesError> {
     validate(cfg)?;
     let parent = path.parent().ok_or_else(|| {
@@ -107,9 +109,13 @@ pub fn save(path: &Path, cfg: &Config) -> Result<(), RulesError> {
         fs::copy(path, &bak)?;
     }
     let json = serde_json::to_string_pretty(cfg)?;
-    let mut f = fs::File::create(path)?;
-    f.write_all(json.as_bytes())?;
-    f.sync_all()?;
+    let tmp = parent.join("rules.json.tmp");
+    {
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(json.as_bytes())?;
+        f.sync_all()?;
+    }
+    fs::rename(&tmp, path)?;
     Ok(())
 }
 
