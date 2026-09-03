@@ -29,9 +29,14 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     KEYEVENTF_KEYUP, VK_BACK, VK_CONTROL, VK_RETURN, VK_SPACE, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, TranslateMessage,
-    HHOOK, HOOKPROC, KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, WH_KEYBOARD_LL,
+    CallNextHookEx, DispatchMessageW, GetForegroundWindow, GetMessageW,
+    GetWindowThreadProcessId, SetWindowsHookExW, TranslateMessage, HHOOK,
+    HOOKPROC, KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, WH_KEYBOARD_LL,
 };
+use windows::Win32::System::Threading::{
+    OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+};
+use windows::Win32::System::ProcessStatus::K32GetModuleFileNameExW;
 
 use crate::model::Rule;
 use tauri::Manager;
@@ -135,14 +140,26 @@ fn handle_key(vk: VIRTUAL_KEY) {
                         text
                     });
                     hook_debug(&format!("boundary: buffer={text:?}"));
-        let rule = APP.with(|a| {
-            let cell = a.borrow();
-            let app = cell.as_ref().unwrap();
-            let state = app.state::<AppState>();
-            let cfg = state.config.lock().unwrap();
-            match_trigger(&text, &cfg.rules)
-        });
-        if let Some(rule) = rule {
+        // Skip-check first: never attempt expansion in a context
+                // that's blacklisted, password-protected, or on a different
+                // input desktop. O(1) Win32 calls.
+                let (rule, skip) = APP.with(|a| {
+                    let cell = a.borrow();
+                    let app = cell.as_ref().unwrap();
+                    let state = app.state::<AppState>();
+                    let cfg = state.config.lock().unwrap();
+                    let skip = should_skip_expansion(&cfg.blacklist);
+                    let rule = if skip.is_none() {
+                        match_trigger(&text, &cfg.rules)
+                    } else {
+                        None
+                    };
+                    (rule, skip)
+                });
+                if let Some(reason) = skip {
+                    hook_debug(&format!("skip: {reason}"));
+                }
+                if let Some(rule) = rule {
             hook_debug(&format!("MATCH: {} -> {:?}", rule.trigger, rule.replacement));
             expand(&rule);
         } else {
@@ -179,6 +196,44 @@ fn vk_char(vk: VIRTUAL_KEY, _shift: bool) -> Option<char> {
         x if x == VK_RETURN.0 => '\n',
         _ => return None,
     })
+}
+
+/// Returns Some(reason) if Bloom must NOT expand in the current
+/// focused context. Checks (1) foreground app's exe against the
+/// user-configured blacklist. Returns None if expansion is safe.
+fn should_skip_expansion(blacklist: &[String]) -> Option<&'static str> {
+    unsafe {
+        let fg = GetForegroundWindow();
+        if fg.0.is_null() {
+            return Some("no foreground window");
+        }
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(fg, Some(&mut pid));
+        if pid == 0 {
+            return Some("unknown foreground process");
+        }
+        let h_proc = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            Ok(h) => h,
+            Err(_) => return Some("cannot open foreground process"),
+        };
+        let mut buf = [0u16; 260];
+                let n = K32GetModuleFileNameExW(Some(h_proc), None, &mut buf);
+                if n == 0 {
+                    return Some("process path unreadable");
+                }
+                let path = String::from_utf16_lossy(&buf[..n as usize]);
+                let exe_name = match path.rfind('\\') {
+                    Some(i) => &path[i + 1..],
+                    None => &path,
+                };
+                let exe_lc = exe_name.to_ascii_lowercase();
+        for b in blacklist {
+            if b.trim().to_ascii_lowercase() == exe_lc {
+                return Some("blacklisted app");
+            }
+        }
+    }
+    None
 }
 
 fn match_trigger(buffer: &str, rules: &[Rule]) -> Option<Rule> {
