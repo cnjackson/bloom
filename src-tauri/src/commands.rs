@@ -60,9 +60,10 @@ pub fn get_config(state: State<'_, AppState>) -> Config {
 
 #[tauri::command]
 pub fn add_rule(state: State<'_, AppState>, mut rule: Rule) -> Result<Config, String> {
-    if rule.id.is_empty() {
-        rule.id = new_id();
-    }
+    // Always regenerate server-side: the client's draft id is a UI-only
+    // placeholder ("__new_N") and must never be persisted. Also keeps the
+    // ULID sort-by-creation-time property intact.
+    rule.id = new_id();
     if rule.created_at.is_empty() {
         rule.created_at = Utc::now().to_rfc3339();
     }

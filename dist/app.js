@@ -163,9 +163,11 @@ function beginEdit(r) {
     }
     try {
       if (r._draft) {
-        // First save of a new rule: create it server-side.
+        r._draft = false; // guard against double-Enter / double-click re-submit
+        // First save of a new rule: create it server-side. The backend
+        // regenerates the id; adopt what it returns.
         const res = await invoke("add_rule", {
-          rule: { id: r.id, trigger, replacement, enabled: true, created_at: "" },
+          rule: { id: "", trigger, replacement, enabled: true, created_at: "" },
         });
         state.rules = res.rules;
       } else {
