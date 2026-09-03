@@ -61,40 +61,6 @@ pub enum RulesError {
     Validation(String),
 }
 
-impl serde::Serialize for RulesErrorSerde {
-    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        ser.serialize_str(&self.0)
-    }
-}
-
-/// Wrapper so we can serialize `RulesError` as a string for Tauri's IPC.
-/// Tauri commands return `Result<_, String>` in most examples; this
-/// matches that convention and removes the need to derive Serialize on
-/// the error enum directly (which thiserror::Error doesn't expose by
-/// default).
-pub struct RulesErrorSerde(String);
-
-impl From<RulesError> for RulesErrorSerde {
-    fn from(e: RulesError) -> Self { Self(e.to_string()) }
-}
-
-impl serde::Serialize for RulesErrorSerde {
-    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        ser.serialize_str(&self.0)
-    }
-}
-
-/// Wrapper so we can serialize `RulesError` as a string for Tauri's IPC.
-/// Tauri commands return `Result<_, String>` in most examples; this
-/// matches that convention and removes the need to derive Serialize on
-/// the error enum directly (which thiserror::Error doesn't expose by
-/// default).
-pub struct RulesErrorSerde(String);
-
-impl From<RulesError> for RulesErrorSerde {
-    fn from(e: RulesError) -> Self { Self(e.to_string()) }
-}
-
 impl From<RulesError> for String {
     fn from(e: RulesError) -> Self { e.to_string() }
 }
