@@ -10,6 +10,7 @@
 //! follow-up once the install path + UI + persistence are proven end-to-end.
 
 mod commands;
+mod hook;
 mod model;
 mod store;
 mod tray;
@@ -53,6 +54,7 @@ pub fn run() {
         )) // LaunchAgent arg is a no-op on Windows; plugin API requires it.
         .setup(|app| {
             tray::install(app)?;
+            hook::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

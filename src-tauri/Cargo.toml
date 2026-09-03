@@ -26,7 +26,5 @@ tauri-plugin-autostart = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 thiserror = "2"
 
-[target.'cfg(target_os = "windows")'.dependencies]
-# Reserved for the future hook subsystem (windows-rs based fallback
-# when rdev's `unstable_grab` fails on a future Rust update). Today we
-# ship without the hook — keep the seam for v1.1.
+rdev = { version = "0.5", features = ["unstable_grab"] }
+arboard = "3"
