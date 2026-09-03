@@ -36,7 +36,13 @@ function render() {
     }
   }
   $("autostartCheckbox").checked = !!state.start_with_windows;
-  $("blacklistBox").value = (state.blacklist ?? []).join("\n");
+  // Never overwrite a focused input — it resets the caret and makes
+  // multiline editing impossible. Value refresh happens on load and on
+  // import instead.
+  const bl = $("blacklistBox");
+  if (document.activeElement !== bl && document.activeElement !== $("autostartCheckbox")) {
+    bl.value = (state.blacklist ?? []).join("\n");
+  }
   $("statusRules").textContent = `${state.rules.length} rule${state.rules.length === 1 ? "" : "s"}`;
   $("saveBtn").disabled = !state.dirty;
   $("statusMsg").textContent = state.dirty ? "Modified" : "Saved";
@@ -155,10 +161,18 @@ function beginEdit(r) {
       tdErr.replaceChildren(e);
       return;
     }
-    const updated = { ...r, trigger, replacement };
     try {
-      const res = await invoke("update_rule", { id: r.id, rule: updated });
-      state.rules = res.rules;
+      if (r._draft) {
+        // First save of a new rule: create it server-side.
+        const res = await invoke("add_rule", {
+          rule: { id: r.id, trigger, replacement, enabled: true, created_at: "" },
+        });
+        state.rules = res.rules;
+      } else {
+        const updated = { ...r, trigger, replacement };
+        const res = await invoke("update_rule", { id: r.id, rule: updated });
+        state.rules = res.rules;
+      }
       state.dirty = true;
       render();
     } catch (e) {
@@ -168,7 +182,12 @@ function beginEdit(r) {
       tdErr.replaceChildren(ee);
     }
   };
-  const cancel = () => render();
+  const cancel = () => {
+    if (r._draft) {
+      state.rules = state.rules.filter((x) => x.id !== r.id);
+    }
+    render();
+  };
 
   replInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") save();
@@ -215,22 +234,16 @@ async function deleteRule(r) {
   }
 }
 
-async function addRule() {
-  // optimistic empty row
+function addRule() {
+  // Open a local edit row. Nothing hits Rust until the user saves a
+  // valid rule — strict validation forbids empty triggers, so an
+  // optimistic empty create would always fail.
   const tempId = `__new_${state.newRuleId++}`;
-  const r = { id: tempId, trigger: "", replacement: "", enabled: true };
-  state.rules.push(r);
+  const draft = { id: tempId, trigger: "", replacement: "", enabled: true, _draft: true };
+  state.rules.push(draft);
   render();
-  // find the row and switch to edit mode
   const tr = rulesBody.querySelector(`tr[data-id="${tempId}"]`);
-  if (tr) beginEdit(r);
-  // attempt to create on Rust side; if user cancels, rules.json unchanged
-  try {
-    const newRule = await invoke("add_rule", { rule: { trigger: "", replacement: "" } });
-    r.id = newRule.id;
-  } catch (e) {
-    // ignore — user will retry or cancel
-  }
+  if (tr) beginEdit(draft);
 }
 
 async function saveAll() {
