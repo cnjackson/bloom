@@ -29,6 +29,12 @@ pub struct Config {
     /// Exe filenames (case-insensitive on Windows). Common password
     /// managers ship by default; user editable.
     pub blacklist: Vec<String>,
+    /// Optional global whitelist. None = expand everywhere non-blacklisted.
+    /// Some(list) = only expand when the focused app's exe is in the list.
+    /// Per-rule app scope uses the trigger prefix `app.exe:shortcut`;
+    /// this list is an additional app-wide filter.
+    #[serde(default)]
+    pub scoped_to: Option<Vec<String>>,
     pub rules: Vec<Rule>,
 }
 
@@ -42,6 +48,7 @@ impl Default for Config {
                 "1password.exe".into(),
                 "Bitwarden.exe".into(),
             ],
+            scoped_to: None,
             rules: vec![],
         }
     }

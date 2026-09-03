@@ -182,6 +182,10 @@
       <span class="caption" style="margin-bottom:2px;">Blacklist — Bloom stays quiet in these apps (one exe per line)</span>
       <textarea id="blacklistBox" placeholder="KeePass.exe&#10;1password.exe&#10;Bitwarden.exe" spellcheck="false"></textarea>
     </div>
+    <div class="field grow">
+      <span class="caption" style="margin-bottom:2px;">Scope to (leave empty for everywhere) — one exe per line</span>
+      <textarea id="scopedToBox" placeholder="notepad.exe&#10;Code.exe" spellcheck="false"></textarea>
+    </div>
   </section>
 
   <main>
@@ -194,6 +198,7 @@
     <div id="emptyMsg" class="empty" hidden>
       <div class="big">🌱</div>
       No rules yet — click <strong>&nbsp;＋ Add rule&nbsp;</strong> and type a shortcut.
+      <br /><small style="color:var(--muted);">Tip: prefix a trigger with <code>notepad.exe:omw</code> to fire only in that app.</small>
     </div>
   </main>
 

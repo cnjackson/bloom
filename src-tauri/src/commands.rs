@@ -116,10 +116,12 @@ pub fn save_all(
     state: State<'_, AppState>,
     start_with_windows: bool,
     blacklist: Vec<String>,
+    scoped_to: Option<Vec<String>>,
 ) -> Result<Config, String> {
     let mut cfg = state.config.lock().unwrap();
     cfg.start_with_windows = start_with_windows;
     cfg.blacklist = blacklist;
+    cfg.scoped_to = scoped_to;
     store::save(&state.config_path, &cfg).map_err(err)?;
     apply_autostart(&app, start_with_windows).map_err(err)?;
     Ok(cfg.clone())

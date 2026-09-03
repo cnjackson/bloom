@@ -1,46 +1,36 @@
 //! Global keyboard hook (v1.1) — direct Win32 WH_KEYBOARD_LL.
 //!
-//! rdev's `grab()` silently receives no events on this machine (hook
-//! installs, callback never fires). Replaced with a direct
-//! SetWindowsHookExW low-level keyboard hook + explicit message pump —
-//! the same mechanism AutoHotkey uses. This is the architecture.md
-//! documented fallback.
+//! Captures keystrokes system-wide via a low-level keyboard hook + an
+//! explicit message pump. Buffer is whitespace-bounded; on match,
+//! synthetic backspaces erase the trigger and clipboard+Ctrl+V pastes
+//! the replacement (clipboard restored after).
 //!
-//! Behaviour:
-//! - typeable chars buffered (last 64)
-//! - on space/enter: buffer matched against enabled rules (first-match,
-//!   case-insensitive, token boundary — same semantics as the tested
-//!   Python harness)
-//! - on match: synthetic backspaces erase the trigger, replacement
-//!   pasted via clipboard+Ctrl+V (restored after), INJECTING flag
-//!   prevents re-processing our own synthetic events
-//!
-//! v1.1 simplifications vs spec: clipboard path for all expansions; no
-//! password-field / blacklist / Secure-Desktop gates yet (next slice).
+//! Per-rule app scope: triggers can be prefixed `app.exe:shortcut` so
+//! the rule fires only when that exe owns the focused window. A
+//! global `scoped_to` field on Config adds an app-wide filter on top.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use windows::core::w;
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
-    KEYEVENTF_KEYUP, VK_BACK, VK_CONTROL, VK_RETURN, VK_SPACE, VIRTUAL_KEY,
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
+    VK_BACK, VK_CONTROL, VK_RETURN, VK_SPACE, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetForegroundWindow, GetMessageW,
     GetWindowThreadProcessId, SetWindowsHookExW, TranslateMessage, HHOOK,
-    HOOKPROC, KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, WH_KEYBOARD_LL,
+    KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, WH_KEYBOARD_LL,
 };
 use windows::Win32::System::Threading::{
     OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::System::ProcessStatus::K32GetModuleFileNameExW;
 
-use crate::model::Rule;
 use tauri::Manager;
 
+use crate::model::Rule;
 use crate::AppState;
 
 static INJECTING: AtomicBool = AtomicBool::new(false);
@@ -59,10 +49,10 @@ fn hook_debug(msg: &str) {
 pub fn start(app: tauri::AppHandle) {
     std::thread::spawn(move || unsafe {
         // Thread-locals are PER-THREAD: initialize on the hook thread
-        // itself. Values set in start() belong to the main thread and
-        // leave the hook thread's locals empty -> unwrap() panic at
-        // first keystroke (crashed as STATUS_STACK_BUFFER_OVERRUN).
-        let buf: std::sync::Arc<Mutex<Vec<char>>> = std::sync::Arc::new(Mutex::new(Vec::with_capacity(BUF_MAX)));
+        // itself; values set in start() (the main thread) leave the
+        // hook thread's locals empty -> unwrap() panic at first key.
+        let buf: std::sync::Arc<Mutex<Vec<char>>> =
+            std::sync::Arc::new(Mutex::new(Vec::with_capacity(BUF_MAX)));
         BUFFER.with(|b| *b.borrow_mut() = Some(buf));
         APP.with(|a| *a.borrow_mut() = Some(app));
 
@@ -75,8 +65,6 @@ pub fn start(app: tauri::AppHandle) {
         };
         HOOK = hook;
         eprintln!("bloom: WH_KEYBOARD_LL installed");
-        // Message pump — REQUIRED. Low-level hooks are called on the
-        // installing thread while it pumps messages.
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
             let _ = TranslateMessage(&msg);
@@ -87,8 +75,10 @@ pub fn start(app: tauri::AppHandle) {
 }
 
 thread_local! {
-    static BUFFER: std::cell::RefCell<Option<std::sync::Arc<Mutex<Vec<char>>>>> = const { std::cell::RefCell::new(None) };
-    static APP: std::cell::RefCell<Option<tauri::AppHandle>> = const { std::cell::RefCell::new(None) };
+    static BUFFER: std::cell::RefCell<Option<std::sync::Arc<Mutex<Vec<char>>>>>
+        = const { std::cell::RefCell::new(None) };
+    static APP: std::cell::RefCell<Option<tauri::AppHandle>>
+        = const { std::cell::RefCell::new(None) };
 }
 
 unsafe extern "system" fn hook_proc(ncode: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -96,14 +86,11 @@ unsafe extern "system" fn hook_proc(ncode: i32, wparam: WPARAM, lparam: LPARAM) 
         return CallNextHookEx(Some(HOOK), ncode, wparam, lparam);
     }
     let st: &KBDLLHOOKSTRUCT = std::mem::transmute(lparam.0 as *const KBDLLHOOKSTRUCT);
-
-    // Pass through our own synthetic input; re-processing it would
-    // corrupt the buffer and re-trigger.
+    // Pass through our own synthetic input (re-processing would
+    // corrupt the buffer and re-trigger).
     if (st.flags & LLKHF_INJECTED).0 != 0 {
         return CallNextHookEx(Some(HOOK), ncode, wparam, lparam);
     }
-
-    // WM_KEYDOWN (0x0100) / WM_SYSKEYDOWN (0x0104)
     if wparam.0 as u32 == 0x0100 || wparam.0 as u32 == 0x0104 {
         handle_key(VIRTUAL_KEY(st.vkCode as u16));
     }
@@ -111,12 +98,11 @@ unsafe extern "system" fn hook_proc(ncode: i32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 fn handle_key(vk: VIRTUAL_KEY) {
-    let is_shift = unsafe { GetAsyncKeyState(0x10 /* VK_SHIFT */) as u16 & 0x8000 != 0 };
-    let c = match vk_char(vk, is_shift) {
+    let c = match vk_char(vk) {
         Some(c) => c,
         None => {
-            // non-typeable key: reset buffer (trigger glued to an
-            // unknown key is not a trigger the user meant to fire)
+            // Non-typeable key: reset buffer (a trigger glued to an
+            // unknown key is not a trigger the user meant).
             BUFFER.with(|b| {
                 if let Some(buf) = b.borrow().as_ref() {
                     buf.lock().unwrap().clear();
@@ -127,42 +113,48 @@ fn handle_key(vk: VIRTUAL_KEY) {
     };
 
     if c == ' ' || c == '\n' {
-            let text = BUFFER.with(|b| {
-                        let mut lock = b.borrow_mut();
-                        let buf = lock.as_mut().unwrap();
-                        // Whitespace joins the buffer as a separator char (kept so
-                        // match_trigger can do token-boundary checks). The buffer
-                        // grows across multi-word triggers; we only clear it on a
-                        // successful match below, not on every whitespace.
-                        let mut inner = buf.lock().unwrap();
-                        inner.push(c);
-                        let text: String = inner.iter().collect();
-                        text
-                    });
-                    hook_debug(&format!("boundary: buffer={text:?}"));
-        // Skip-check first: never attempt expansion in a context
-                // that's blacklisted, password-protected, or on a different
-                // input desktop. O(1) Win32 calls.
-                let (rule, skip) = APP.with(|a| {
-                    let cell = a.borrow();
-                    let app = cell.as_ref().unwrap();
-                    let state = app.state::<AppState>();
-                    let cfg = state.config.lock().unwrap();
-                    let skip = should_skip_expansion(&cfg.blacklist);
-                    let rule = if skip.is_none() {
-                        match_trigger(&text, &cfg.rules)
-                    } else {
-                        None
-                    };
-                    (rule, skip)
-                });
-                if let Some(reason) = skip {
-                    hook_debug(&format!("skip: {reason}"));
+        let text = BUFFER.with(|b| {
+            let mut lock = b.borrow_mut();
+            let buf = lock.as_mut().unwrap();
+            // Whitespace joins the buffer so multi-word triggers
+            // accumulate; only successful match / non-typeable resets it.
+            let mut inner = buf.lock().unwrap();
+            inner.push(c);
+            let text: String = inner.iter().collect();
+            text
+        });
+        hook_debug(&format!("boundary: buffer={text:?}"));
+
+        let outcome = APP.with(|a| {
+            let cell = a.borrow();
+            let app = cell.as_ref().unwrap();
+            let state = app.state::<AppState>();
+            let cfg = state.config.lock().unwrap();
+            let focus = resolve_focus(&cfg.blacklist, &cfg.scoped_to);
+            let reason: &'static str = if focus.excluded {
+                if cfg.blacklist.iter().any(|b| b.trim().to_ascii_lowercase() == focus.exe) {
+                    "blacklisted app"
+                } else {
+                    "not in scoped_to"
                 }
-                if let Some(rule) = rule {
+            } else {
+                "ok"
+            };
+            let rule = if !focus.excluded {
+                match_trigger(&text, &cfg.rules, &focus.exe)
+            } else {
+                None
+            };
+            (rule, reason)
+        });
+
+        if outcome.1 != "ok" {
+            hook_debug(&format!("skip: {}", outcome.1));
+        }
+        if let Some(rule) = outcome.0 {
             hook_debug(&format!("MATCH: {} -> {:?}", rule.trigger, rule.replacement));
             expand(&rule);
-        } else {
+        } else if outcome.1 == "ok" {
             hook_debug("no match");
         }
     } else {
@@ -178,71 +170,75 @@ fn handle_key(vk: VIRTUAL_KEY) {
     }
 }
 
-/// Map virtual-key codes to chars (US layout). Uppercase folded to
-/// lowercase in the buffer — matching is case-insensitive; the case
-/// rule reads the FIRST typed char separately, which loses
-/// shift-information here. Documented simplification: expansions adopt
-/// the configured replacement's case as typed; auto-capitalize applies
-/// only if the whole trigger was typed with Shift held for its first
-/// letter — approximated by tracking the last Shift state at first
-/// char time. Simplified v1.1: trigger's first letter case is taken
-/// from the replacement config itself.
-fn vk_char(vk: VIRTUAL_KEY, _shift: bool) -> Option<char> {
-    use windows::Win32::UI::Input::KeyboardAndMouse::*;
+/// Map virtual-key codes to chars (US layout). Letters folded to
+/// lowercase in the buffer (matching is case-insensitive). The
+/// replacement adopts its own configured case — Apple's
+/// auto-capitalize rule on the configured text, simplified.
+fn vk_char(vk: VIRTUAL_KEY) -> Option<char> {
     Some(match vk.0 {
-        0x41..=0x5A => ((vk.0 - 0x41) + b'a' as u16) as u8 as char, // A-Z -> a-z
-        0x30..=0x39 => vk.0 as u8 as char,                        // 0-9
+        0x41..=0x5A => ((vk.0 - 0x41) + b'a' as u16) as u8 as char,
+        0x30..=0x39 => vk.0 as u8 as char,
         x if x == VK_SPACE.0 => ' ',
         x if x == VK_RETURN.0 => '\n',
         _ => return None,
     })
 }
 
-/// Returns Some(reason) if Bloom must NOT expand in the current
-/// focused context. Checks (1) foreground app's exe against the
-/// user-configured blacklist. Returns None if expansion is safe.
-fn should_skip_expansion(blacklist: &[String]) -> Option<&'static str> {
+/// Foreground app lookup + global filter check. exe is lowercase.
+struct Focus {
+    exe: String,     // empty = unknown
+    excluded: bool,  // true if blacklist hit OR scoped_to missed
+}
+
+fn resolve_focus(blacklist: &[String], scoped_to: &Option<Vec<String>>) -> Focus {
+    let raw_exe: String;
     unsafe {
         let fg = GetForegroundWindow();
         if fg.0.is_null() {
-            return Some("no foreground window");
+            return Focus { exe: String::new(), excluded: false };
         }
         let mut pid: u32 = 0;
         GetWindowThreadProcessId(fg, Some(&mut pid));
         if pid == 0 {
-            return Some("unknown foreground process");
+            return Focus { exe: String::new(), excluded: false };
         }
         let h_proc = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
             Ok(h) => h,
-            Err(_) => return Some("cannot open foreground process"),
+            Err(_) => return Focus { exe: String::new(), excluded: false },
         };
         let mut buf = [0u16; 260];
-                let n = K32GetModuleFileNameExW(Some(h_proc), None, &mut buf);
-                if n == 0 {
-                    return Some("process path unreadable");
-                }
-                let path = String::from_utf16_lossy(&buf[..n as usize]);
-                let exe_name = match path.rfind('\\') {
-                    Some(i) => &path[i + 1..],
-                    None => &path,
-                };
-                let exe_lc = exe_name.to_ascii_lowercase();
-        for b in blacklist {
-            if b.trim().to_ascii_lowercase() == exe_lc {
-                return Some("blacklisted app");
-            }
+        let n = K32GetModuleFileNameExW(Some(h_proc), None, &mut buf);
+        if n == 0 {
+            return Focus { exe: String::new(), excluded: false };
+        }
+        let path = String::from_utf16_lossy(&buf[..n as usize]);
+        raw_exe = match path.rfind('\\') {
+            Some(i) => path[i + 1..].to_string(),
+            None => path,
+        };
+    }
+    let exe_lc = raw_exe.to_ascii_lowercase();
+    if exe_lc.is_empty() {
+        return Focus { exe: String::new(), excluded: false };
+    }
+    if blacklist.iter().any(|b| b.trim().to_ascii_lowercase() == exe_lc) {
+        return Focus { exe: exe_lc, excluded: true };
+    }
+    if let Some(scope) = scoped_to {
+        let in_scope = scope.iter().any(|s| s.trim().to_ascii_lowercase() == exe_lc);
+        if !in_scope {
+            return Focus { exe: exe_lc, excluded: true };
         }
     }
-    None
+    Focus { exe: exe_lc, excluded: false }
 }
 
-fn match_trigger(buffer: &str, rules: &[Rule]) -> Option<Rule> {
+fn match_trigger(buffer: &str, rules: &[Rule], exe: &str) -> Option<Rule> {
     if buffer.is_empty() {
         return None;
     }
-    // The boundary character (whitespace we just typed) is part of the
-    // buffer but not part of any trigger. Strip it for matching; require
-    // that it BE there (otherwise we matched mid-word).
+    // Whitespace-boundary check: trigger must end at the buffer's last
+    // typed character, with whitespace as the boundary.
     if !buffer.ends_with(char::is_whitespace) {
         return None;
     }
@@ -254,9 +250,24 @@ fn match_trigger(buffer: &str, rules: &[Rule]) -> Option<Rule> {
         if !r.enabled {
             continue;
         }
-        let trig = r.trigger.split_whitespace().collect::<Vec<_>>().join(" ");
+        // Optional app scope: `app.exe:shortcut`. split_once is exact;
+        // halves are lowercased to match focused exe.
+        let (scoped_to, trig_raw) = match r.trigger.split_once(':') {
+            Some((scope, rest)) => (
+                Some(scope.trim().to_ascii_lowercase()),
+                rest.trim().to_string(),
+            ),
+            None => (None, r.trigger.clone()),
+        };
+        let trig = trig_raw.split_whitespace().collect::<Vec<_>>().join(" ");
         if trig.is_empty() {
             continue;
+        }
+        // Per-rule scope: only fire when this rule's app is the focused one.
+        if let Some(scope) = scoped_to {
+            if exe.is_empty() || scope != exe {
+                continue;
+            }
         }
         if head.len() >= trig.len()
             && head[head.len() - trig.len()..].eq_ignore_ascii_case(&trig)
@@ -279,7 +290,6 @@ fn expand(rule: &Rule) {
     if !ok {
         hook_debug("backspace injection failed");
     }
-    // paste
     let mut clip = match arboard::Clipboard::new() {
         Ok(c) => c,
         Err(e) => {
@@ -314,13 +324,13 @@ unsafe fn send_backspaces(n: usize) -> bool {
 
 unsafe fn send_ctrl_v() {
     send_key(VK_CONTROL.0 as u16, false);
-    send_key(0x56, false); // 'V'
+    send_key(0x56, false);
     send_key(0x56, true);
     send_key(VK_CONTROL.0 as u16, true);
 }
 
 unsafe fn send_key(vk: u16, up: bool) -> bool {
-    let mut input = INPUT {
+    let input = INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
             ki: KEYBDINPUT {

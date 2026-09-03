@@ -10,6 +10,7 @@ const state = {
   rules: [],
   start_with_windows: true,
   blacklist: [],
+  scoped_to: null,
   dirty: false,
   newRuleId: 0,
 };
@@ -36,13 +37,14 @@ function render() {
     }
   }
   $("autostartCheckbox").checked = !!state.start_with_windows;
-  // Never overwrite a focused input — it resets the caret and makes
-  // multiline editing impossible. Value refresh happens on load and on
-  // import instead.
-  const bl = $("blacklistBox");
-  if (document.activeElement !== bl && document.activeElement !== $("autostartCheckbox")) {
-    bl.value = (state.blacklist ?? []).join("\n");
-  }
+    $("scopedToBox").value = (state.scoped_to ?? []).join("\n");
+    // Never overwrite a focused input — it resets the caret and makes
+    // multiline editing impossible. Value refresh happens on load and on
+    // import instead.
+    const bl = $("blacklistBox");
+    if (document.activeElement !== bl && document.activeElement !== $("autostartCheckbox")) {
+      bl.value = (state.blacklist ?? []).join("\n");
+    }
   $("statusRules").textContent = `${state.rules.length} rule${state.rules.length === 1 ? "" : "s"}`;
   $("saveBtn").disabled = !state.dirty;
   $("statusMsg").textContent = state.dirty ? "Modified" : "Saved";
@@ -253,13 +255,18 @@ function addRule() {
 async function saveAll() {
   const autostart = $("autostartCheckbox").checked;
   const blacklist = $("blacklistBox").value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const scopedToText = $("scopedToBox").value.trim();
+  // Empty box = None (expand everywhere); non-empty = explicit list
+  const scopedTo = scopedToText ? scopedToText.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : null;
   try {
     const res = await invoke("save_all", {
       startWithWindows: autostart,
       blacklist,
+      scopedTo,
     });
     state.start_with_windows = res.start_with_windows;
     state.blacklist = res.blacklist;
+    state.scoped_to = res.scoped_to;
     state.rules = res.rules;
     state.dirty = false;
     render();
@@ -301,6 +308,7 @@ $("exportBtn").addEventListener("click", exportJson);
 $("saveBtn").addEventListener("click", saveAll);
 $("autostartCheckbox").addEventListener("change", () => { state.dirty = true; render(); });
 $("blacklistBox").addEventListener("input", () => { state.dirty = true; render(); });
+$("scopedToBox").addEventListener("input", () => { state.dirty = true; render(); });
 
 // ---------- load on startup ----------
 (async () => {
@@ -308,7 +316,8 @@ $("blacklistBox").addEventListener("input", () => { state.dirty = true; render()
     const cfg = await invoke("get_config");
     state.rules = cfg.rules ?? [];
     state.start_with_windows = cfg.start_with_windows ?? true;
-    state.blacklist = cfg.blacklist ?? [];
+    state.scoped_to = cfg.scoped_to ?? null;
+  $("scopedToBox").value = (state.scoped_to ?? []).join("\n");
     state.dirty = false;
     render();
   } catch (e) {
