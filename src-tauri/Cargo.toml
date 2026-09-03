@@ -28,3 +28,12 @@ thiserror = "2"
 
 rdev = { version = "0.5", features = ["unstable_grab"] }
 arboard = "3"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Foundation",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_System_LibraryLoader",
+]
