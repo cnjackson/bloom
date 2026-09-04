@@ -352,16 +352,24 @@ async function importJson() {
   // Native file picker via tauri-plugin-dialog, invoked directly through
   // __TAURI_INTERNALS__ so we don't need the plugin's JS wrapper to be
   // loaded. The Rust side handles the dialog.
+  // Resolve the Downloads folder so the dialog defaults there.
+  let dl = "";
+  try {
+    dl = (await window.__TAURI_INTERNALS__.invoke(
+      "plugin:path|download_dir", {}
+    )) || "";
+  } catch (_) { /* non-fatal — dialog still opens, just defaults elsewhere */ }
+
   let path;
   try {
-    const selected = await _dbg("calling plugin:dialog|open...");
-      const _r = await window.__TAURI_INTERNALS__.invoke(
+    const selected = await window.__TAURI_INTERNALS__.invoke(
       "plugin:dialog|open",
       {
         options: {
           multiple: false,
           directory: false,
           filters: [{ name: "Bloom rules", extensions: ["json"] }],
+          defaultPath: (dl || "") + "\\bloom-rules.json",
         },
       }
     );
@@ -375,7 +383,8 @@ async function importJson() {
   // Read the file via tauri-plugin-fs (returns string when text mode)
   let raw;
   try {
-    raw = await _dbg("reading file via plugin:fs..."); const _r2 = await window.__TAURI_INTERNALS__.invoke(
+    _dbg("reading file via plugin:fs...");
+    raw = await window.__TAURI_INTERNALS__.invoke(
       "plugin:fs|read_text_file",
       { path }
     );
