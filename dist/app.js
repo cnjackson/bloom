@@ -315,49 +315,209 @@ async function saveAll() {
 }
 
 async function importJson() {
-  const hint =
-    "Paste the path to a rules.json file exported from Bloom or " +
-    "hand-written with the schema:\n" +
-    "{ version: 1, start_with_windows: bool, blacklist: [exe.exe], " +
-    "scoped_to: null|[exe.exe], theme: { mode: \"dark|light|system\" }, " +
-    "rules: [{ id, trigger, replacement, enabled, created_at }] }\n\n" +
-    "Example: C:\\Users\\you\\Desktop\\bloom-rules.json";
-  const path = window.prompt(hint);
-  // Treat null (cancel) AND empty/whitespace (no entry) as "back out".
-  if (!path || !path.trim()) return;
+  // Use the native file picker. Filter to JSON only.
+  let path;
   try {
-    const res = await invoke("import_json", { path: path.trim() });
-    state.rules = res.rules ?? [];
-    state.start_with_windows = res.start_with_windows ?? true;
-    state.blacklist = res.blacklist ?? [];
-    state.scoped_to = res.scoped_to ?? null;
-    state.theme = res.theme ?? { mode: "dark" };
-    state.dirty = true;
-    render();
+    const selected = await window.__TAURI__.core.invoke("plugin:dialog|open", {
+      options: {
+        multiple: false,
+        directory: false,
+        filters: [{ name: "Bloom rules", extensions: ["json"] }],
+      },
+    });
+    if (!selected || (typeof selected === "string" && !selected.trim())) return;
+    path = selected;
   } catch (e) {
-    alert(`Import failed:\n${e}\n\nCheck the path is correct and the file is valid rules.json.`);
+    console.warn("import dialog:", e);
+    return;
+  }
+  // Read + parse the file ourselves so we can compute conflicts before
+  // showing the modal. The Rust side does the same validation as a
+  // defense-in-depth (merge_import calls store::validate).
+  let incoming;
+  try {
+    const txt = await window.__TAURI__.core.invoke("plugin:fs|read_text_file", {
+      path,
+    });
+    incoming = JSON.parse(txt);
+  } catch (e) {
+    alert(
+      `Import failed:\n${e}\n\n` +
+      `Check the path is a valid JSON file and matches the Bloom rules schema.`
+    );
+    return;
+  }
+  if (!incoming || !Array.isArray(incoming.rules)) {
+    alert("Import failed: file is not a Bloom rules.json (missing 'rules' array).");
+    return;
+  }
+  // Compute conflicts (case-insensitive trigger match).
+  const existing = state.rules || [];
+  const existing_lc = new Map(existing.map((r) => [r.trigger.toLowerCase(), r]));
+  const incoming_rules = incoming.rules;
+  const conflicts = [];
+  const seen = new Set();
+  for (const ir of incoming_rules) {
+    const key = (ir.trigger || "").toLowerCase();
+    if (!key) continue;
+    if (existing_lc.has(key) && !seen.has(key)) {
+      conflicts.push({
+        trigger: ir.trigger,
+        existing: existing_lc.get(key),
+        incoming: ir,
+      });
+      seen.add(key);
+    }
+  }
+  if (conflicts.length === 0) {
+    // No conflicts — apply directly via merge_import with empty decisions.
+    try {
+      const res = await invoke("merge_import", { path, decisions: {} });
+      applyImportedConfig(res);
+      toast(`Imported ${incoming_rules.length} rule(s). Nothing conflicted.`);
+    } catch (e) {
+      alert(`Import failed:\n${e}`);
+    }
+    return;
+  }
+  // Show the conflict modal with checkboxes. Default unchecked (Skip).
+  showImportConflicts(path, incoming_rules.length, conflicts);
+}
+
+// Open the conflict modal. decisions[i].overwrite = true means overwrite
+// the existing rule at conflicts[i].trigger; false = skip.
+let _importState = null;
+function showImportConflicts(path, incomingCount, conflicts) {
+  _importState = { path, incomingCount, conflicts, decisions: [] };
+  const tbody = $("importConflictRows");
+  tbody.innerHTML = "";
+  for (let i = 0; i < conflicts.length; i++) {
+    const c = conflicts[i];
+    const tr = document.createElement("tr");
+    tr.dataset.idx = String(i);
+    // Checkbox column
+    const tdCb = document.createElement("td");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = `conflict_${i}`;
+    cb.addEventListener("change", () => {
+      _importState.decisions[i] = cb.checked ? "overwrite" : "skip";
+    });
+    const lbl = document.createElement("label");
+    lbl.htmlFor = cb.id;
+    lbl.style.marginLeft = "6px";
+    lbl.textContent = "Overwrite";
+    tdCb.appendChild(cb);
+    tdCb.appendChild(lbl);
+    tr.appendChild(tdCb);
+    // Trigger column
+    const tdT = document.createElement("td");
+    tdT.style.fontFamily = "var(--mono, monospace)";
+    tdT.textContent = c.trigger;
+    tr.appendChild(tdT);
+    // Current replacement
+    const tdCur = document.createElement("td");
+    tdCur.textContent = c.existing.replacement.length > 80
+      ? c.existing.replacement.slice(0, 80) + "..."
+      : c.existing.replacement;
+    tdCur.style.color = "var(--muted)";
+    tr.appendChild(tdCur);
+    // Incoming replacement
+    const tdNew = document.createElement("td");
+    tdNew.textContent = c.incoming.replacement.length > 80
+      ? c.incoming.replacement.slice(0, 80) + "..."
+      : c.incoming.replacement;
+    tdNew.style.color = "var(--muted)";
+    tr.appendChild(tdNew);
+    tbody.appendChild(tr);
+    _importState.decisions[i] = "skip"; // default
+  }
+  $("importCount").textContent = String(incomingCount);
+  $("importConflictCount").textContent = String(conflicts.length);
+  $("importConflictsModal").hidden = false;
+}
+
+async function applyImportConflicts() {
+  const s = _importState;
+  if (!s) return;
+  // Build the decisions map: trigger (case-preserved) -> decision
+  const decMap = {};
+  for (let i = 0; i < s.conflicts.length; i++) {
+    decMap[s.conflicts[i].trigger] = s.decisions[i] || "skip";
+  }
+  $("importConflictsModal").hidden = true;
+  try {
+    const res = await invoke("merge_import", {
+      path: s.path,
+      decisions: decMap,
+    });
+    applyImportedConfig(res);
+    let msg = `Imported ${s.incomingCount} rule(s).`;
+    const overwritten = Object.values(decMap).filter((v) => v === "overwrite").length;
+    const skipped = Object.values(decMap).filter((v) => v === "skip").length;
+    if (skipped || overwritten) {
+      msg += ` ${overwritten} overwritten, ${skipped} skipped.`;
+    }
+    toast(msg);
+  } catch (e) {
+    alert(`Import failed:\n${e}`);
+  } finally {
+    _importState = null;
   }
 }
 
+function cancelImportConflicts() {
+  $("importConflictsModal").hidden = true;
+  _importState = null;
+}
+
+function applyImportedConfig(res) {
+  state.rules = res.rules ?? [];
+  state.start_with_windows = res.start_with_windows ?? true;
+  state.blacklist = res.blacklist ?? [];
+  state.scoped_to = res.scoped_to ?? null;
+  state.theme = res.theme ?? { mode: "dark" };
+  state.dirty = true;
+  render();
+}
+
+// Tiny toast: 3 seconds, fade.
+let _toastTimer = null;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.hidden = false;
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { t.hidden = true; }, 3000);
+}
+
+
+
 async function exportJson() {
-  const hint =
-    "Path to write the rules to. Leave blank to save as bloom-rules.json " +
-    "in your Downloads folder.\n\n" +
-    "Example: C:\\Users\\you\\Desktop\\bloom-rules-backup.json";
-  const path = window.prompt(hint, "");
-  // null (cancel) and empty/whitespace (no path) both = use default;
-  // but since `prompt()` returns null only on Cancel, treat empty as "use default"
-  // and null as "don't export at all" so Cancel doesn't silently write somewhere.
-  if (path === null) return;
+  let path;
   try {
-    const target = await invoke("export_json", {
-      path: path && path.trim() ? path.trim() : null,
+    const dl = await window.__TAURI__.path.downloadDir().catch(() => null);
+    const suggested = (dl ? dl + "\\" : "") + "bloom-rules.json";
+    path = await window.__TAURI__.core.invoke("plugin:dialog|save", {
+      options: {
+        defaultPath: suggested,
+        filters: [{ name: "Bloom rules", extensions: ["json"] }],
+      },
     });
-    alert(`Exported to:\n${target}`);
+    if (!path) return; // user cancelled
+  } catch (e) {
+    console.warn("export dialog:", e);
+    return;
+  }
+  try {
+    const target = await invoke("export_json", { path });
+    toast(`Exported to ${target}`);
   } catch (e) {
     alert(`Export failed:\n${e}`);
   }
 }
+
+
 
 // ---------- wire up ----------
 $("addBtn").addEventListener("click", addRule);
@@ -426,6 +586,19 @@ async function populateAbout() {
 $("settingsBtn").addEventListener("click", () => {
   switchTab("settings");
   populateAbout();
+});
+
+// ---------- Import conflicts modal wiring ----------
+$("importConflictsClose").addEventListener("click", cancelImportConflicts);
+$("importConflictsCancel").addEventListener("click", cancelImportConflicts);
+$("importConflictsApply").addEventListener("click", applyImportConflicts);
+$("importConflictsModal").addEventListener("click", (e) => {
+  if (e.target === $("importConflictsModal")) cancelImportConflicts(); // backdrop
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("importConflictsModal").hidden) {
+    cancelImportConflicts();
+  }
 });
 
 // ---------- load on startup ----------

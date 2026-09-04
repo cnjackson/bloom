@@ -148,6 +148,77 @@ pub fn import_json(state: State<'_, AppState>, path: String) -> Result<Config, S
     Ok(cfg)
 }
 
+/// Merge import: read an exported rules.json from disk, validate it, then
+/// apply a per-trigger decision map to either skip or overwrite conflicts.
+/// A conflict is a case-insensitive trigger match against the current
+/// rules. Decisions: HashMap<trigger, "skip" | "overwrite">. If a
+/// conflict's trigger is missing from decisions, that conflict is
+/// skipped by default (the user didn't see it — conservative default).
+/// Returns the new Config after the merge.
+#[tauri::command]
+pub fn merge_import(
+    state: State<'_, AppState>,
+    path: String,
+    decisions: std::collections::HashMap<String, String>,
+) -> Result<Config, String> {
+    let txt = fs::read_to_string(&path).map_err(err)?;
+    let incoming: Config = serde_json::from_str(&txt).map_err(err)?;
+    store::validate(&incoming).map_err(err)?;
+
+    let mut current = state.config.lock().unwrap();
+    // Build a lowercased index of current rules for fast conflict checks.
+    let mut existing_lc: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    for (i, r) in current.rules.iter().enumerate() {
+        existing_lc.insert(r.trigger.to_ascii_lowercase(), i);
+    }
+
+    let mut added = 0usize;
+    let mut overwritten = 0usize;
+    let mut skipped = 0usize;
+
+    for incoming_rule in incoming.rules.into_iter() {
+        let key = incoming_rule.trigger.to_ascii_lowercase();
+        if let Some(&idx) = existing_lc.get(&key) {
+            // Conflict — defer to decisions.
+            let decision = decisions.get(&incoming_rule.trigger)
+                .or_else(|| decisions.get(&key))
+                .map(String::as_str)
+                .unwrap_or("skip");
+            match decision {
+                "overwrite" => {
+                    // Re-id the imported rule to preserve its identity but
+                    // overwrite the existing entry's content.
+                    let mut new_rule = incoming_rule;
+                    new_rule.id = current.rules[idx].id.clone();
+                    new_rule.created_at = current.rules[idx].created_at.clone();
+                    current.rules[idx] = new_rule;
+                    overwritten += 1;
+                }
+                _ => {
+                    skipped += 1;
+                }
+            }
+        } else {
+            // No conflict; append as a fresh rule.
+            let mut new_rule = incoming_rule;
+            new_rule.id = new_id();
+            if new_rule.created_at.is_empty() {
+                new_rule.created_at = Utc::now().to_rfc3339();
+            }
+            current.rules.push(new_rule);
+            existing_lc.insert(key, current.rules.len() - 1);
+            added += 1;
+        }
+    }
+
+    eprintln!(
+        "bloom: merge_import added={} overwritten={} skipped={}",
+        added, overwritten, skipped
+    );
+    Ok(current.clone())
+}
+
 /// Return install-side paths used by the About panel. Cheap (no I/O).
 #[tauri::command]
 pub fn get_app_meta(state: State<'_, AppState>) -> AppMeta {

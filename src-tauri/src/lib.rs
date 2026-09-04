@@ -63,6 +63,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -91,6 +92,7 @@ pub fn run() {
             commands::import_json,
             commands::export_json,
             commands::get_app_meta,
+            commands::merge_import,
         ])
         .on_window_event(|window, event| {
             // Hide instead of close when the user clicks the X. The process

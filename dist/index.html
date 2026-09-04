@@ -342,7 +342,24 @@
             .about-row:last-of-type { border-bottom: 0; }
             .about-key { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
             .about-val { color: var(--fg); font-size: 13px; text-align: right; word-break: break-all; }
-          </style>
+          
+    /* ---------- Conflict modal footer + toast ---------- */
+    .modal-footer {
+      display: flex; justify-content: flex-end; gap: 8px;
+      padding: 14px 22px 18px;
+      border-top: 1px solid var(--border);
+    }
+    .toast {
+      position: fixed;
+      bottom: 18px; left: 18px;
+      background: var(--surface-2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 14px; font-size: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.4);
+      z-index: 10000;
+      max-width: 360px;
+    }
+  </style>
         </head>
         <body>
       <!-- Splash overlay: shows logo + version + publisher for 3s on first load only.
@@ -454,5 +471,43 @@
         </div>
       </div>
     </div>
-  </body>
+  
+  <!-- Import conflicts modal: shown when an import file has triggers
+       that already exist. Per-row checkbox decides whether to overwrite
+       the existing rule or skip the incoming one. -->
+  <div id="importConflictsModal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-labelledby="importConflictsTitle" aria-modal="true">
+      <header class="modal-header">
+        <h2 id="importConflictsTitle">Resolve conflicts</h2>
+        <button class="ghost modal-close" id="importConflictsClose" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="caption" style="margin-bottom: 12px;">
+          Importing <strong id="importCount">0</strong> rule(s). <strong id="importConflictCount">0</strong>
+          trigger(s) already exist locally. Check the ones you want to
+          <strong>overwrite</strong>, leave the rest to be skipped.
+        </p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="text-align: left; color: var(--muted); border-bottom: 1px solid var(--border);">
+              <th style="width: 110px; padding: 6px 4px;">Overwrite</th>
+              <th style="padding: 6px 4px;">Trigger</th>
+              <th style="padding: 6px 4px;">Current</th>
+              <th style="padding: 6px 4px;">Incoming</th>
+            </tr>
+          </thead>
+          <tbody id="importConflictRows"></tbody>
+        </table>
+      </div>
+      <footer class="modal-footer">
+        <button class="ghost" id="importConflictsCancel">Cancel</button>
+        <button class="primary" id="importConflictsApply">Apply</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Toast: small status message at bottom-left, auto-dismisses. -->
+  <div id="toast" class="toast" hidden></div>
+</body>
+
   </html>
