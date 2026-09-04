@@ -51,10 +51,10 @@
     }
 
     /* ---------- header ---------- */
-    header {
-      display: flex; align-items: center; gap: 10px;
-      padding: 14px 18px 12px; flex: 0 0 auto;
-    }
+        header {
+          display: flex; align-items: center; gap: 8px;
+          padding: 12px 16px 10px; flex: 0 0 auto;
+        }
     .logo {
       width: 30px; height: 30px; flex: 0 0 auto;
       display: block;
@@ -103,7 +103,9 @@
         button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 6px 10px; }
         button.ghost:hover { color: var(--fg); background: var(--surface-2); }
         :root[data-theme="light"] button.ghost:hover { background: #ecf0f6; color: var(--fg); }
-    /* The settings cog — larger and centered like a proper icon button. */
+    /* The settings cog + Add rule: tighter padding so 5 buttons fit in the
+           800px minWidth without crowding the title. */
+        #addBtn { padding: 7px 12px; }
         #settingsBtn {
           font-size: 18px; padding: 4px 12px; line-height: 1;
           border-radius: 50px;
@@ -349,13 +351,12 @@
     <div>
       <h1>Bloom</h1>
     </div>
-    <span class="sub">text replacement</span>
     <span class="spacer"></span>
-    <button id="addBtn">＋ Add rule</button>
-    <button id="importBtn" class="ghost" title="Import rules from a rules.json file (replaces current rules)">Import</button>
-    <button id="exportBtn" class="ghost" title="Export current rules to a rules.json file (cancel to keep current setup)">Export</button>
-    <button id="settingsBtn" class="ghost" title="Settings" aria-label="Settings">⚙</button>
-    <button id="saveBtn" class="primary">Save</button>
+        <button id="addBtn">＋ Add rule</button>
+        <button id="importBtn" class="ghost" title="Import rules from a rules.json file (replaces current rules)">Import</button>
+        <button id="exportBtn" class="ghost" title="Export current rules to a rules.json file (cancel to keep current setup)">Export</button>
+        <button id="settingsBtn" class="ghost" title="Settings" aria-label="Settings">⚙</button>
+        <button id="saveBtn" class="primary">Save</button>
   </header>
 
   <section class="settings">
