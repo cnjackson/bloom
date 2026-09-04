@@ -359,6 +359,29 @@
       z-index: 10000;
       max-width: 360px;
     }
+
+    /* ---------- Edit Rule modal ---------- */
+    .modal.modal-wide { width: min(720px, calc(100vw - 60px)); }
+    .edit-label { display: block; margin-bottom: 14px; }
+    .edit-label > .caption { display: block; margin: 4px 0 6px; color: var(--muted); font-size: 11px; }
+    .edit-label > input[type="text"],
+    .edit-label > textarea {
+      display: block; width: 100%;
+      background: var(--surface-2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 7px;
+      padding: 8px 10px; font: inherit; font-size: 13px;
+      transition: border-color .12s, box-shadow .12s;
+    }
+    .edit-label > input[type="text"]:focus,
+    .edit-label > textarea:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(109, 141, 255, 0.18);
+    }
+    .edit-label > textarea {
+      min-height: 220px; resize: vertical; line-height: 1.45;
+      font-family: var(--mono);
+    }
+    .edit-enabled-row { margin-top: 4px; }
   </style>
         </head>
         <body>
@@ -480,6 +503,37 @@
       </div>
     </div>
   
+  <!-- Edit Rule modal: trigger at top, large textarea for replacement.
+       Opened by clicking Edit on any rule row. Replaces the inline edit. -->
+  <div id="editRuleModal" class="modal-backdrop" hidden>
+    <div class="modal modal-wide" role="dialog" aria-labelledby="editRuleTitle" aria-modal="true">
+      <header class="modal-header">
+        <h2 id="editRuleTitle">Edit rule</h2>
+        <button class="ghost modal-close" id="editRuleClose" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <label class="edit-label">
+          Trigger
+          <span class="caption">Type a sequence followed by a space to expand. Case is not significant.</span>
+          <input type="text" id="editRuleTrigger" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="edit-label">
+          Replacement
+          <span class="caption">Multi-line: just press Enter. Up to 4096 chars.</span>
+          <textarea id="editRuleReplacement" rows="14" spellcheck="false"></textarea>
+        </label>
+        <label class="toggle edit-enabled-row">
+          <input type="checkbox" id="editRuleEnabled" />
+          Enabled
+        </label>
+      </div>
+      <footer class="modal-footer">
+        <button class="ghost" id="editRuleCancel">Cancel</button>
+        <button class="primary" id="editRuleApply">Save</button>
+      </footer>
+    </div>
+  </div>
+
   <!-- Import conflicts modal: shown when an import file has triggers
        that already exist. Per-row checkbox decides whether to overwrite
        the existing rule or skip the incoming one. -->

@@ -194,99 +194,68 @@ function renderRow(r) {
 }
 
 function beginEdit(r) {
-  const tr = rulesBody.querySelector(`tr[data-id="${r.id}"]`);
-  if (!tr) return;
-  tr.innerHTML = "";
+  // Open the Edit Rule modal pre-populated with this rule's data.
+  openEditRule(r);
+}
 
-  const tdTrigger = document.createElement("td");
-  const triggerInput = document.createElement("input");
-  triggerInput.value = r.trigger;
-  tdTrigger.appendChild(triggerInput);
-  tr.appendChild(tdTrigger);
+// ---------- Edit Rule modal ----------
+let _editState = null;
+function openEditRule(r) {
+  _editState = { id: r.id };
+  $("editRuleTitle").textContent = "Edit rule";
+  $("editRuleTrigger").value = r.trigger;
+  $("editRuleReplacement").value = r.replacement;
+  $("editRuleEnabled").checked = !!r.enabled;
+  $("editRuleModal").hidden = false;
+  // Focus the textarea so the cursor lands in the big box immediately.
+  setTimeout(() => {
+    const ta = $("editRuleReplacement");
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }, 30);
+}
 
-  const tdArrow = document.createElement("td");
-  tdArrow.className = "arrow";
-  tdArrow.textContent = "→";
-  tr.appendChild(tdArrow);
-
-  const tdRepl = document.createElement("td");
-  const replInput = document.createElement("input");
-  replInput.value = r.replacement;
-  tdRepl.appendChild(replInput);
-  tr.appendChild(tdRepl);
-
-  const tdErr = document.createElement("td");
-  tdErr.className = "edit-row";
-  tdErr.colSpan = 4;
-  tr.appendChild(tdErr);
-
-  replInput.focus();
-  replInput.select();
-
-  const save = async () => {
-    const trigger = triggerInput.value.trim();
-    const replacement = replInput.value;
-    const err = validateRule(trigger, replacement);
-    if (err) {
-      const e = document.createElement("div");
-      e.className = "err";
-      e.textContent = err;
-      tdErr.replaceChildren(e);
-      return;
+async function applyEditRule() {
+  const s = _editState;
+  if (!s) return;
+  const trigger = $("editRuleTrigger").value.trim();
+  const replacement = $("editRuleReplacement").value;
+  const enabled = $("editRuleEnabled").checked;
+  if (!trigger) {
+    alert("Trigger cannot be empty.");
+    $("editRuleTrigger").focus();
+    return;
+  }
+  if (replacement.length > 4096) {
+    alert(`Replacement too long (${replacement.length} / 4096 chars).`);
+    return;
+  }
+  try {
+    if (s.id) {
+      const updated = {
+        id: s.id,
+        trigger, replacement, enabled,
+        created_at: (state.rules.find((x) => x.id === s.id) || {}).created_at || "",
+      };
+      const res = await invoke("update_rule", { id: s.id, rule: updated });
+      state.rules = res.rules ?? state.rules;
+    } else {
+      const res = await invoke("add_rule", {
+        rule: { id: "", trigger, replacement, enabled, created_at: "" },
+      });
+      state.rules = res.rules ?? state.rules;
     }
-    try {
-      if (r._draft) {
-        r._draft = false; // guard against double-Enter / double-click re-submit
-        // First save of a new rule: create it server-side. The backend
-        // regenerates the id; adopt what it returns.
-        const res = await invoke("add_rule", {
-          rule: { id: "", trigger, replacement, enabled: true, created_at: "" },
-        });
-        state.rules = res.rules;
-      } else {
-        const updated = { ...r, trigger, replacement };
-        const res = await invoke("update_rule", { id: r.id, rule: updated });
-        state.rules = res.rules;
-      }
-      state.dirty = true;
-      render();
-    } catch (e) {
-      const ee = document.createElement("div");
-      ee.className = "err";
-      ee.textContent = String(e);
-      tdErr.replaceChildren(ee);
-    }
-  };
-  const cancel = () => {
-    if (r._draft) {
-      state.rules = state.rules.filter((x) => x.id !== r.id);
-    }
+    state.dirty = true;
+    cancelEditRule();
     render();
-  };
+  } catch (e) {
+    alert(`Save failed:\n${e}`);
+  }
+}
 
-  replInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") save();
-    else if (e.key === "Escape") cancel();
-  });
-  triggerInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); replInput.focus(); }
-    else if (e.key === "Escape") cancel();
-  });
-
-  // also add Save/Cancel buttons in actions cell
-  const tdActions = document.createElement("td");
-  tdActions.className = "actions";
-  const saveBtn = document.createElement("button");
-  saveBtn.textContent = "Save";
-  saveBtn.className = "primary";
-  saveBtn.addEventListener("click", save);
-  const cancelBtn = document.createElement("button");
-  cancelBtn.textContent = "Cancel";
-  cancelBtn.style.marginLeft = "4px";
-  cancelBtn.addEventListener("click", cancel);
-  tdActions.appendChild(saveBtn);
-  tdActions.appendChild(cancelBtn);
-  tr.appendChild(tdActions);
+function cancelEditRule() {
+  $("editRuleModal").hidden = true;
+  _editState = null;
 }
 
 function validateRule(trigger, replacement) {
@@ -311,15 +280,14 @@ async function deleteRule(r) {
 }
 
 function addRule() {
-  // Open a local edit row. Nothing hits Rust until the user saves a
-  // valid rule — strict validation forbids empty triggers, so an
-  // optimistic empty create would always fail.
-  const tempId = `__new_${state.newRuleId++}`;
-  const draft = { id: tempId, trigger: "", replacement: "", enabled: true, _draft: true };
-  state.rules.push(draft);
-  render();
-  const tr = rulesBody.querySelector(`tr[data-id="${tempId}"]`);
-  if (tr) beginEdit(draft);
+  // Open the Edit Rule modal in "new rule" mode (no id -> backend uses
+  // add_rule when the user clicks Save; update_rule otherwise).
+  openEditRule({
+    id: "",
+    trigger: "",
+    replacement: "",
+    enabled: true,
+  });
 }
 
 async function saveAll() {
@@ -653,6 +621,14 @@ $("settingsBtn").addEventListener("click", () => {
   populateAbout();
 });
 
+// ---------- Edit Rule modal wiring ----------
+$("editRuleClose").addEventListener("click", cancelEditRule);
+$("editRuleCancel").addEventListener("click", cancelEditRule);
+$("editRuleApply").addEventListener("click", applyEditRule);
+$("editRuleModal").addEventListener("click", (e) => {
+  if (e.target === $("editRuleModal")) cancelEditRule();
+});
+
 // ---------- Import conflicts modal wiring ----------
 $("importConflictsClose").addEventListener("click", cancelImportConflicts);
 $("importConflictsCancel").addEventListener("click", cancelImportConflicts);
@@ -661,6 +637,10 @@ $("importConflictsModal").addEventListener("click", (e) => {
   if (e.target === $("importConflictsModal")) cancelImportConflicts(); // backdrop
 });
 document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("editRuleModal").hidden) {
+    cancelEditRule();
+    return;
+  }
   if (e.key === "Escape" && !$("importConflictsModal").hidden) {
     cancelImportConflicts();
   }
