@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "start_with_windows": true,
+  "blacklist": [],
+  "scoped_to": null,
+  "theme": {
+    "mode": "dark"
+  },
+  "rules": [
+    {
+      "id": "",
+      "trigger": ";design",
+      "replacement": "Act as a senior product designer.\n\nGoals:\n- Translate the requirements into a clean, modern UI.\n- Favor clarity, hierarchy, and consistency over novelty.\n- Assume a SaaS / pro-tool aesthetic unless told otherwise.\n\nOutput:\n- Describe the layout, components, and interaction model.\n- Provide a concrete implementation plan (HTML/CSS/React or similar).\n- Call out any ambiguous requirements and propose sensible defaults.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";code",
+      "replacement": "Act as a senior software engineer.\n\nTask:\n- Implement the requested feature in a production-ready way.\n- Follow existing conventions in the repo/context.\n- Prefer simple, readable code over cleverness.\n\nRequirements:\n- Include error handling and basic validation.\n- Add comments only where non-obvious.\n- Ensure the code is testable.\n\nOutput:\n- Show the full code for the changed/added files.\n- Briefly explain key design decisions.\n- List any follow-ups or tech debt introduced.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";review",
+      "replacement": "Act as a senior code reviewer.\n\nFocus:\n- Correctness, security, performance, maintainability.\n- Missing tests and edge cases.\n- API contracts and backward compatibility.\n\nOutput format:\n- 2–3 sentence summary of the change.\n- Issues by severity (Critical/High/Medium/Low).\n- For each issue: file + lines, problem, suggested fix with code.\n- Final verdict: Approve / Request Changes / Needs Rework.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";spec",
+      "replacement": "Act as a technical PM / tech lead.\n\nTask:\n- Turn the high-level idea into a clear, implementable spec.\n\nInclude:\n- Problem statement and goals.\n- User stories or use cases.\n- High-level architecture and data model.\n- API surface (endpoints, requests/responses) if applicable.\n- Acceptance criteria (\"Done when…\").\n- Open questions and risks.\n\nKeep it concise but precise; assume an experienced engineering audience.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";refactor",
+      "replacement": "Act as a staff engineer.\n\nTask:\n- Propose a refactoring plan for the given code to improve:\n  - Readability\n  - Maintainability\n  - Testability\n  - Performance (where relevant)\n\nOutput:\n- Brief diagnosis of current issues.\n- Step-by-step refactoring plan.\n- Show the refactored code in full.\n- Note any behavior changes or migration steps.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";test",
+      "replacement": "Act as a test engineer.\n\nTask:\n- Generate comprehensive tests for the provided code.\n\nRequirements:\n- Use {{TEST_FRAMEWORK}}.\n- Cover happy paths, edge cases, and failure modes.\n- Include negative tests and boundary conditions.\n- Keep tests focused and readable.\n\nOutput:\n- Brief testing strategy.\n- Full test file code.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";sec",
+      "replacement": "Act as an application security engineer.\n\nTask:\n- Review the code/design for security issues.\n\nFocus:\n- Injection, authn/authz, secrets handling, input validation, logging.\n- Dependency and supply-chain risks.\n\nOutput:\n- Findings by severity with example exploit paths.\n- Concrete fixes and, where useful, code snippets.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";sys_agent",
+      "replacement": "You are an autonomous AI agent assisting a software engineering team.\n\nBehavior:\n- Be concise, technical, and direct.\n- Prefer code and concrete steps over long explanations.\n- When uncertain, state assumptions and ask targeted clarifying questions.\n- Never invent APIs, config keys, or internal service names.\n\nContext:\n- Stack: {{STACK}}\n- Repo: {{REPO_NAME}}\n- Current branch: {{BRANCH}}\n- Ticket: {{TICKET_ID}}\n\nOutput rules:\n- Use Markdown.\n- Put all code in fenced blocks with language tags.\n- For multi-step plans, number the steps.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";sys_reviewer",
+      "replacement": "You are a senior code reviewer for a production backend service.\n\nGoals:\n- Find bugs, security issues, performance problems, and maintainability risks.\n- Suggest concrete fixes with example code.\n- Call out missing tests and edge cases.\n\nProcess:\n1. Summarize the change in 2–3 sentences.\n2. List issues by severity: Critical, High, Medium, Low.\n3. For each issue, show:\n   - File + line range\n   - Problem description\n   - Suggested fix (with code snippet)\n4. End with a short \"Overall\" verdict: Approve / Request Changes / Needs Rework.\n\nConstraints:\n- Do not nitpick formatting unless it affects readability or correctness.\n- Focus on logic, security, performance, and API contracts.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";sys_architect",
+      "replacement": "You are a principal software architect reviewing a design proposal.\n\nEvaluate:\n- Correctness of the architecture for the stated requirements.\n- Scalability, reliability, and operability.\n- Security and compliance implications.\n- Trade-offs vs. reasonable alternatives.\n\nOutput structure:\n1. One-paragraph summary of the design.\n2. Strengths.\n3. Risks and concerns (with severity).\n4. Recommended changes or alternatives.\n5. Open questions that must be resolved before implementation.\n\nAssume the audience is experienced engineers; avoid basic explanations.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": "/pr",
+      "replacement": "Review this pull request as a senior engineer.\n\nPR context:\n- Title: {{PR_TITLE}}\n- Description: {{PR_DESCRIPTION}}\n- Files changed: {{FILES_CHANGED}}\n\nInstructions:\n- Summarize the change.\n- Identify logical bugs, edge cases, and missing tests.\n- Highlight security and performance concerns.\n- Suggest specific code improvements with examples.\n- Conclude with: Approve / Request Changes / Needs Rework and why.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": "/test",
+      "replacement": "Generate comprehensive tests for the following code.\n\nCode:\n{{CODE_BLOCK}}\n\nRequirements:\n- Use {{TEST_FRAMEWORK}}.\n- Cover happy paths, edge cases, and failure modes.\n- Include negative tests and boundary conditions.\n- Keep tests readable and focused; one assertion concept per test where possible.\n\nOutput:\n- Explain the testing strategy briefly.\n- Provide the full test file code.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": "/sec",
+      "replacement": "Perform a security review of the following code / design.\n\nInput:\n{{CONTENT}}\n\nFocus areas:\n- Injection (SQL, NoSQL, command, template)\n- AuthN/AuthZ issues\n- Secrets handling\n- Input validation and output encoding\n- Logging and auditability\n- Dependency and supply-chain risks\n\nOutput:\n- List findings by severity with CVSS-like intuition (Critical/High/Medium/Low).\n- For each finding: describe the issue, show an example exploit path, and propose a concrete fix.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": "/perf",
+      "replacement": "Analyze the performance of the following code and suggest optimizations.\n\nCode:\n{{CODE_BLOCK}}\n\nConsider:\n- Algorithmic complexity\n- I/O patterns (DB, network, disk)\n- Concurrency and locking\n- Memory usage and allocations\n- Caching opportunities\n\nOutput:\n- Brief performance profile (where time is spent).\n- Prioritized list of optimizations with expected impact.\n- Show optimized code snippets or full rewritten functions where appropriate.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": "!!clarify",
+      "replacement": "Before proceeding, ask up to 5 targeted clarifying questions that would materially improve the quality or relevance of your answer.\n\nFocus on:\n- Missing context about requirements or constraints.\n- Ambiguities in the task or input.\n- Assumptions that could change the solution.\n\nAfter listing questions, wait for answers before producing the final solution.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": "!!think_harder",
+      "replacement": "Solve this problem using deep, structured reasoning.\n\nProcess:\n1. Restate the problem in your own words.\n2. List key constraints and success criteria.\n3. Enumerate possible approaches and their trade-offs.\n4. Choose the best approach and justify it.\n5. Work through the solution step by step, checking for errors as you go.\n6. Summarize the final answer clearly.\n\nShow your reasoning compactly; avoid unnecessary verbosity.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": "!!critique",
+      "replacement": "Critique the following solution as a skeptical senior engineer.\n\nSolution:\n{{SOLUTION_TEXT}}\n\nTasks:\n- Identify weaknesses, gaps, and risky assumptions.\n- Suggest concrete improvements or alternative approaches.\n- Highlight any parts that would not scale, would be hard to maintain, or could fail in production.\n\nBe blunt but constructive.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";ctx_stack",
+      "replacement": "Stack context:\n- Languages: {{LANGUAGES}}\n- Frameworks: {{FRAMEWORKS}}\n- Data stores: {{DATABASES}}\n- Infra: {{INFRA_PLATFORM}}\n- Observability: {{OBS_STACK}}\n- Auth: {{AUTH_SYSTEM}}",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";ctx_repo",
+      "replacement": "Repository context:\n- Name: {{REPO_NAME}}\n- Primary purpose: {{REPO_PURPOSE}}\n- Key services/modules: {{KEY_MODULES}}\n- Deployment model: {{DEPLOY_MODEL}}\n- Environments: {{ENVIRONMENTS}}\n- CI/CD: {{CI_CD_SYSTEM}}",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";go",
+      "replacement": "Answer in short, in plain English. Now get to work and execute this plan fully and completely like a tenics engineer would.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";simplify",
+      "replacement": "Make your previous answer simpler and shorter, formatted in a nice readable markdown. Be very concise.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";gitpush",
+      "replacement": "Stage files, write a clear comment, push to GitHub.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    },
+    {
+      "id": "",
+      "trigger": ";short",
+      "replacement": "Answer in short in plain English.",
+      "enabled": true,
+      "created_at": "2026-09-04T19:01:53+00:00"
+    }
+  ]
+}
