@@ -15,6 +15,13 @@ use tauri::{AppHandle, Manager, State};
 use crate::model::{Config, Rule, Theme, MAX_REPLACEMENT_LEN, MAX_TRIGGER_LEN};
 use crate::{AppState, store};
 
+/// Cheap, serialized-to-frontend metadata used by the About panel.
+#[derive(serde::Serialize)]
+pub struct AppMeta {
+    pub install_dir: String,
+    pub config_path: String,
+}
+
 /// Generate a fresh ULID-style id: 10-char millisecond timestamp prefix
 /// (lexically sortable) + 16 random chars from the OS CSPRNG. Collision
 /// probability is negligible; no per-process counter needed.
@@ -139,6 +146,22 @@ pub fn import_json(state: State<'_, AppState>, path: String) -> Result<Config, S
     let mut current = state.config.lock().unwrap();
     *current = cfg.clone();
     Ok(cfg)
+}
+
+/// Return install-side paths used by the About panel. Cheap (no I/O).
+#[tauri::command]
+pub fn get_app_meta(state: State<'_, AppState>) -> AppMeta {
+    // Best-effort install location: the parent directory of bloom.exe when
+    // installed per-user to %LOCALAPPDATA%\Programs\Bloom.
+    let install_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    AppMeta {
+        install_dir,
+        config_path: state.config_path.to_string_lossy().into_owned(),
+    }
 }
 
 #[tauri::command]

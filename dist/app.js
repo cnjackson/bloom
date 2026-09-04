@@ -379,6 +379,56 @@ $("autostartCheckbox").addEventListener("change", () => { state.dirty = true; re
 $("blacklistBox").addEventListener("input", () => { state.dirty = true; render(); });
 $("scopedToBox").addEventListener("input", () => { state.dirty = true; render(); });
 
+// ---------- Splash ----------
+// Shows on first load only (sessionStorage flag). After 3s, fades and hides.
+// app starts with .hidden set so it never flashes on subsequent loads.
+(function setupSplash() {
+  const seen = sessionStorage.getItem("bloom.splashSeen");
+  const splash = $("splash");
+  if (seen) {
+    splash.remove();
+    return;
+  }
+  splash.hidden = false;
+  sessionStorage.setItem("bloom.splashSeen", "1");
+  setTimeout(() => {
+    splash.classList.add("fading");
+    setTimeout(() => splash.remove(), 650);
+  }, 3000);
+})();
+
+// ---------- Settings tabs ----------
+// Two tabs: Settings + About. Switch by clicking, support arrow keys.
+const switchTab = (target) => {
+  for (const t of document.querySelectorAll(".modal-tab")) {
+    const sel = t.dataset.tab === target;
+    t.setAttribute("aria-selected", sel ? "true" : "false");
+  }
+  for (const p of document.querySelectorAll(".settings-section[data-panel]")) {
+    p.hidden = p.dataset.panel !== target;
+  }
+};
+for (const t of document.querySelectorAll(".modal-tab")) {
+  t.addEventListener("click", () => switchTab(t.dataset.tab));
+}
+
+// ---------- About panel ----------
+// Populate the install-location + config-path rows from Rust on modal open.
+async function populateAbout() {
+  try {
+    const meta = await invoke("get_app_meta");
+    if (meta?.install_dir) $("aboutInstall").textContent = meta.install_dir;
+    if (meta?.config_path) $("aboutConfig").textContent = meta.config_path;
+  } catch (e) {
+    // non-fatal; user just sees blanks
+  }
+}
+// Hook into the settings button
+$("settingsBtn").addEventListener("click", () => {
+  switchTab("settings");
+  populateAbout();
+});
+
 // ---------- load on startup ----------
 (async () => {
   try {

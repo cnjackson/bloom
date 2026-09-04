@@ -58,14 +58,15 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::get_config,
-            commands::add_rule,
-            commands::update_rule,
-            commands::delete_rule,
-            commands::save_all,
-            commands::import_json,
-            commands::export_json,
-        ])
+                    commands::get_config,
+                    commands::add_rule,
+                    commands::update_rule,
+                    commands::delete_rule,
+                    commands::save_all,
+                    commands::import_json,
+                    commands::export_json,
+                    commands::get_app_meta,
+                ])
         .on_window_event(|window, event| {
             // Hide instead of close when the user clicks the X. The process
             // stays alive in the tray; quitting requires ending it from Task
