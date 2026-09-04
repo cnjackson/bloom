@@ -12,12 +12,14 @@ use tauri::{
     App, Manager,
 };
 
-/// Load the tray icon from `icons/icon.png` at runtime. Tauri includes
-/// the icon assets under `tauri::path::resource_dir`, which lands at the
-/// install location in MSI bundles. Falls back to a small solid-blue
-/// placeholder (so the app keeps running if the asset is missing).
-fn tray_icon_rgba() -> Image<'static> {
-    // 16x16 BGRA solid-blue fallback (kept as the same blue we used v0.1)
+/// Load the tray icon. Resolution order:
+/// 1. The bundled resource at `icons/icon-32.png` — Tauri copies this next
+///    to the binary in MSI bundles (set as `resources` in tauri.conf.json).
+/// 2. The source-tree icon at `CARGO_MANIFEST_DIR/icons/icon-32.png` — useful
+///    for `cargo tauri dev` runs.
+/// 3. A small solid-blue 16x16 fallback so the app keeps running if no asset
+///    is found at all (e.g. corrupt install).
+fn tray_icon_rgba(app: &tauri::AppHandle) -> Image<'static> {
     fn fallback() -> Image<'static> {
         const W: u32 = 16;
         const H: u32 = 16;
@@ -26,23 +28,36 @@ fn tray_icon_rgba() -> Image<'static> {
             buf.extend_from_slice(&[0x1A, 0x63, 0xEB, 0xFF]);
         }
         Image::new_owned(buf, W, H)
+    }
+
+    // 1. Production: resource_dir is the install root; MSI copies the
+    //    resources there. The PNG is embedded as a separate 256x256 / 32x32
+    //    asset that Tauri can resolve via path().
+    if let Ok(dir) = app.path().resource_dir() {
+        let candidate = dir.join("icons").join("icon-32.png");
+        if let Ok(bytes) = std::fs::read(&candidate) {
+            if let Ok(img) = image::load_from_memory(&bytes) {
+                let rgba = img.to_rgba8();
+                let (w, h) = (rgba.width(), rgba.height());
+                return Image::new_owned(rgba.into_raw(), w, h);
             }
-            // Tray icons are rendered by Windows at ~32x32 (16-48 DPI-dependent).
-            // Use the hand-crafted 32 master — the 1024 detail master's downsample
-            // reads as a tiny soft thumbnail next to crisp app icons. Falling back
-            // to the solid square if the asset is missing.
-            let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("icons")
-                .join("icon-32.png");
-            if let Ok(bytes) = std::fs::read(&here) {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    let rgba = img.to_rgba8();
-                    let (w, h) = (rgba.width(), rgba.height());
-                    return Image::new_owned(rgba.into_raw(), w, h);
-                }
-            }
-            fallback()
         }
+    }
+
+    // 2. Dev: read from the source tree directly.
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("icons")
+        .join("icon-32.png");
+    if let Ok(bytes) = std::fs::read(&here) {
+        if let Ok(img) = image::load_from_memory(&bytes) {
+            let rgba = img.to_rgba8();
+            let (w, h) = (rgba.width(), rgba.height());
+            return Image::new_owned(rgba.into_raw(), w, h);
+        }
+    }
+
+    fallback()
+}
 
 /// Install a tray icon with a single-click → open window behaviour.
 /// Caller wires this in tauri::Builder::setup().
@@ -51,7 +66,7 @@ pub fn install(app: &mut App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Open rules", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
-    let icon = tray_icon_rgba();
+    let icon = tray_icon_rgba(app.handle());
 
     let _tray = TrayIconBuilder::with_id("bloom-tray")
         .tooltip("Bloom — text replacement")

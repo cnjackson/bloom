@@ -449,6 +449,7 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
+ "tauri-plugin-fs",
  "tauri-plugin-single-instance",
  "thiserror 2.0.20",
  "windows 0.62.2",

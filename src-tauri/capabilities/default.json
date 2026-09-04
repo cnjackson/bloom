@@ -12,6 +12,14 @@
     "core:window:allow-set-focus",
     "core:webview:allow-internal-toggle-devtools",
     "clipboard-manager:default",
-    "autostart:default"
+    "autostart:default",
+    "dialog:default",
+    "fs:allow-read-text-file",
+    "fs:scope",
+    {
+      "identifier": "fs:scope",
+      "description": "Restrict fs to user-picked paths",
+      "allow": [{ "path": "**" }]
+    }
   ]
 }
