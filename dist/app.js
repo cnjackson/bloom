@@ -380,8 +380,10 @@ $("blacklistBox").addEventListener("input", () => { state.dirty = true; render()
 $("scopedToBox").addEventListener("input", () => { state.dirty = true; render(); });
 
 // ---------- Splash ----------
-// Shows on first load only (sessionStorage flag). After 3s, fades and hides.
-// app starts with .hidden set so it never flashes on subsequent loads.
+// Shows on first load only (sessionStorage flag). After 3s, the splash
+// element is removed entirely. The rules window is already visible under it
+// (auto-shown in tauri::Builder.setup()), so removing the splash surfaces
+// the rules UI in place — no click needed.
 (function setupSplash() {
   const seen = sessionStorage.getItem("bloom.splashSeen");
   const splash = $("splash");
@@ -391,10 +393,7 @@ $("scopedToBox").addEventListener("input", () => { state.dirty = true; render();
   }
   splash.hidden = false;
   sessionStorage.setItem("bloom.splashSeen", "1");
-  setTimeout(() => {
-    splash.classList.add("fading");
-    setTimeout(() => splash.remove(), 650);
-  }, 3000);
+  setTimeout(() => splash.remove(), 3000);
 })();
 
 // ---------- Settings tabs ----------
