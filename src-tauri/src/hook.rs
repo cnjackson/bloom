@@ -16,7 +16,9 @@ use std::time::Duration;
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
-    VK_BACK, VK_CONTROL, VK_RETURN, VK_SPACE, VIRTUAL_KEY,
+    VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
+    VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_PRIOR, VK_RETURN,
+    VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB, VK_UP, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetForegroundWindow, GetMessageW,
@@ -98,90 +100,142 @@ unsafe extern "system" fn hook_proc(ncode: i32, wparam: WPARAM, lparam: LPARAM) 
 }
 
 fn handle_key(vk: VIRTUAL_KEY) {
-    let c = match vk_char(vk) {
-        Some(c) => c,
-        None => {
-            // Non-typeable key: reset buffer (a trigger glued to an
-            // unknown key is not a trigger the user meant).
-            BUFFER.with(|b| {
-                if let Some(buf) = b.borrow().as_ref() {
-                    buf.lock().unwrap().clear();
+    match vk_action(vk) {
+        BufAction::Char(c) => {
+            if c == ' ' || c == '\n' {
+                let text = BUFFER.with(|b| {
+                    let mut lock = b.borrow_mut();
+                    let buf = lock.as_mut().unwrap();
+                    // Whitespace joins the buffer so multi-word triggers
+                    // accumulate; only successful match / non-typeable resets it.
+                    let mut inner = buf.lock().unwrap();
+                    inner.push(c);
+                    let text: String = inner.iter().collect();
+                    text
+                });
+                hook_debug(&format!("boundary: buffer={text:?}"));
+
+                let outcome = APP.with(|a| {
+                    let cell = a.borrow();
+                    let app = cell.as_ref().unwrap();
+                    let state = app.state::<AppState>();
+                    let cfg = state.config.lock().unwrap();
+                    let focus = resolve_focus(&cfg.blacklist, &cfg.scoped_to);
+                    let reason: &'static str = if focus.excluded {
+                        if cfg.blacklist.iter().any(|b| b.trim().to_ascii_lowercase() == focus.exe) {
+                            "blacklisted app"
+                        } else {
+                            "not in scoped_to"
+                        }
+                    } else {
+                        "ok"
+                    };
+                    let rule = if !focus.excluded {
+                        match_trigger(&text, &cfg.rules, &focus.exe)
+                    } else {
+                        None
+                    };
+                    (rule, reason)
+                });
+
+                if outcome.1 != "ok" {
+                    hook_debug(&format!("skip: {}", outcome.1));
                 }
-            });
-            return;
-        }
-    };
-
-    if c == ' ' || c == '\n' {
-        let text = BUFFER.with(|b| {
-            let mut lock = b.borrow_mut();
-            let buf = lock.as_mut().unwrap();
-            // Whitespace joins the buffer so multi-word triggers
-            // accumulate; only successful match / non-typeable resets it.
-            let mut inner = buf.lock().unwrap();
-            inner.push(c);
-            let text: String = inner.iter().collect();
-            text
-        });
-        hook_debug(&format!("boundary: buffer={text:?}"));
-
-        let outcome = APP.with(|a| {
-            let cell = a.borrow();
-            let app = cell.as_ref().unwrap();
-            let state = app.state::<AppState>();
-            let cfg = state.config.lock().unwrap();
-            let focus = resolve_focus(&cfg.blacklist, &cfg.scoped_to);
-            let reason: &'static str = if focus.excluded {
-                if cfg.blacklist.iter().any(|b| b.trim().to_ascii_lowercase() == focus.exe) {
-                    "blacklisted app"
-                } else {
-                    "not in scoped_to"
+                if let Some(rule) = outcome.0 {
+                    // The user may have typed extra whitespace before the
+                    // boundary (e.g. "answer  short ") — clear the buffer
+                    // down to the trigger's start so backspaces only erase
+                    // what the user actually typed.
+                    let typed_len = BUFFER.with(|b| {
+                        let lock = b.borrow();
+                        let buf = lock.as_ref().unwrap();
+                        let inner = buf.lock().unwrap();
+                        inner.len()
+                    });
+                    hook_debug(&format!(
+                        "MATCH: {} -> {:?} (typed_len={typed_len})",
+                        rule.trigger, rule.replacement
+                    ));
+                    expand(&rule, typed_len);
+                } else if outcome.1 == "ok" {
+                    hook_debug("no match");
                 }
             } else {
-                "ok"
-            };
-            let rule = if !focus.excluded {
-                match_trigger(&text, &cfg.rules, &focus.exe)
-            } else {
-                None
-            };
-            (rule, reason)
-        });
-
-        if outcome.1 != "ok" {
-            hook_debug(&format!("skip: {}", outcome.1));
-        }
-        if let Some(rule) = outcome.0 {
-            hook_debug(&format!("MATCH: {} -> {:?}", rule.trigger, rule.replacement));
-            expand(&rule);
-        } else if outcome.1 == "ok" {
-            hook_debug("no match");
-        }
-    } else {
-        BUFFER.with(|b| {
-            let mut lock = b.borrow_mut();
-            let buf = lock.as_mut().unwrap();
-            let mut inner = buf.lock().unwrap();
-            inner.push(c);
-            if inner.len() > BUF_MAX {
-                inner.remove(0);
+                BUFFER.with(|b| {
+                    let mut lock = b.borrow_mut();
+                    let buf = lock.as_mut().unwrap();
+                    let mut inner = buf.lock().unwrap();
+                    inner.push(c);
+                    if inner.len() > BUF_MAX {
+                        inner.remove(0);
+                    }
+                });
             }
-        });
+        }
+        BufAction::Backspace => {
+            BUFFER.with(|b| {
+                let mut lock = b.borrow_mut();
+                let buf = lock.as_mut().unwrap();
+                let mut inner = buf.lock().unwrap();
+                inner.pop();
+            });
+        }
+        // Esc, Tab, arrows, nav, modifiers, function keys: don't touch the
+        // buffer at all. Mac-style Text Replacement tolerates these too.
+        BufAction::Ignore => {}
     }
 }
 
-/// Map virtual-key codes to chars (US layout). Letters folded to
-/// lowercase in the buffer (matching is case-insensitive). The
-/// replacement adopts its own configured case — Apple's
-/// auto-capitalize rule on the configured text, simplified.
-fn vk_char(vk: VIRTUAL_KEY) -> Option<char> {
-    Some(match vk.0 {
-        0x41..=0x5A => ((vk.0 - 0x41) + b'a' as u16) as u8 as char,
-        0x30..=0x39 => vk.0 as u8 as char,
+/// What we do with a key.
+#[derive(Clone, Copy)]
+enum BufAction {
+    /// A regular character: 'a'-'z', '0'-'9', space, return.
+    Char(char),
+    /// Backspace: pop the buffer by one character (no auto-expand).
+    Backspace,
+    /// Modifier / navigation / function / escape: leave the buffer alone.
+    Ignore,
+}
+
+/// Map virtual-key codes to actions (US layout). Letters folded to
+/// lowercase in the buffer (matching is case-insensitive).
+fn vk_action(vk: VIRTUAL_KEY) -> BufAction {
+    let v = vk.0;
+        // Modifiers, navigation, function, edit keys we don't act on. These
+        // arrive via `handle_key` but should never reset the user's typing buffer.
+        if v == VK_ESCAPE.0
+            || v == VK_TAB.0
+            || v == VK_LEFT.0
+            || v == VK_RIGHT.0
+            || v == VK_UP.0
+            || v == VK_DOWN.0
+            || v == VK_HOME.0
+            || v == VK_END.0
+            || v == VK_PRIOR.0
+            || v == VK_NEXT.0
+            || v == VK_INSERT.0
+            || v == VK_DELETE.0
+            || v == 0x10
+            || v == 0x11
+            || v == 0x12
+            || v == 0x5B
+            || (0x70..=0x7B).contains(&v)
+        {
+            return BufAction::Ignore;
+        }
+        if v == VK_BACK.0 as u16 {
+            return BufAction::Backspace;
+        }
+    let c = match v {
+        0x41..=0x5A => ((v - 0x41) + b'a' as u16) as u8 as char,
+        0x30..=0x39 => v as u8 as char,
         x if x == VK_SPACE.0 => ' ',
         x if x == VK_RETURN.0 => '\n',
-        _ => return None,
-    })
+        // OEM keys, IME, function keys, and friends: ignore (a trigger
+        // attached to a Tab or arrow shouldn't expand).
+        _ => return BufAction::Ignore,
+    };
+    BufAction::Char(c)
 }
 
 /// Foreground app lookup + global filter check. exe is lowercase.
@@ -283,8 +337,20 @@ fn match_trigger(buffer: &str, rules: &[Rule], exe: &str) -> Option<Rule> {
 
 /// Erase the typed trigger (synthetic backspaces) and paste the
 /// replacement via clipboard + Ctrl+V, restoring the clipboard after.
-fn expand(rule: &Rule) {
-    let n = rule.trigger.chars().count();
+/// `typed_len` is the number of characters in the buffer at the moment
+/// the match fired — that's what we need to backspace, NOT the trigger's
+/// `chars().count()` (which is the *normalized* length). With extra
+/// whitespace like `"answer  short "` this differs by 1+ characters.
+fn expand(rule: &Rule, typed_len: usize) {
+    // The trigger is the last `typed_len` characters of the buffer.
+    // We backspace exactly those — neither more (would erase past text)
+    // nor fewer (would leave the trigger in place).
+    let n = typed_len;
+    BUFFER.with(|b| {
+        if let Some(buf) = b.borrow().as_ref() {
+            buf.lock().unwrap().clear();
+        }
+    });
     INJECTING.store(true, Ordering::SeqCst);
     let ok = unsafe { send_backspaces(n) };
     if !ok {
