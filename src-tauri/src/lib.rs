@@ -15,6 +15,8 @@ mod model;
 mod store;
 mod tray;
 
+use tauri::Manager;
+
 use crate::model::Config;
 use std::sync::Mutex;
 
@@ -53,10 +55,20 @@ pub fn run() {
             None,
         )) // LaunchAgent arg is a no-op on Windows; plugin API requires it.
         .setup(|app| {
-            tray::install(app)?;
-            hook::start(app.handle().clone());
-            Ok(())
-        })
+                    tray::install(app)?;
+                    hook::start(app.handle().clone());
+                    // Show the rules window on first process launch. This makes
+                    // the startup splash visible alongside the rules UI — the
+                    // splash overlay fades 600ms after its 3-second timer, so
+                    // the user lands on the rules window with no extra click.
+                    // The window stays open; closing it returns it to the tray
+                    // per the existing on_window_event handler.
+                    if let Some(win) = app.get_webview_window("main") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
+                    Ok(())
+                })
         .invoke_handler(tauri::generate_handler![
                     commands::get_config,
                     commands::add_rule,
