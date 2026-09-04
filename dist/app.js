@@ -56,6 +56,18 @@ async function saveTheme(mode) {
   }
 }
 
+
+function _dbg(msg) {
+  const el = document.getElementById("dbg");
+  if (!el) return;
+  const line = document.createElement("div");
+  line.textContent = "[" + new Date().toISOString().slice(11,19) + "] " + msg;
+  el.appendChild(line);
+  // keep last 50 lines
+  while (el.children.length > 50) el.removeChild(el.firstChild);
+}
+window._dbg = _dbg;
+
 function escape(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -315,12 +327,14 @@ async function saveAll() {
 }
 
 async function importJson() {
+  _dbg('importJson() entered');
   // Native file picker via tauri-plugin-dialog, invoked directly through
   // __TAURI_INTERNALS__ so we don't need the plugin's JS wrapper to be
   // loaded. The Rust side handles the dialog.
   let path;
   try {
-    const selected = await window.__TAURI_INTERNALS__.invoke(
+    const selected = await _dbg("calling plugin:dialog|open...");
+      const _r = await window.__TAURI_INTERNALS__.invoke(
       "plugin:dialog|open",
       {
         options: {
@@ -334,13 +348,13 @@ async function importJson() {
     path = typeof selected === "string" ? selected : String(selected || "").trim();
     if (!path) return;
   } catch (e) {
-    console.warn("import dialog:", e);
+    _dbg("dialog error: " + e.message); console.warn("import dialog:", e);
     return;
   }
   // Read the file via tauri-plugin-fs (returns string when text mode)
   let raw;
   try {
-    raw = await window.__TAURI_INTERNALS__.invoke(
+    raw = await _dbg("reading file via plugin:fs..."); const _r2 = await window.__TAURI_INTERNALS__.invoke(
       "plugin:fs|read_text_file",
       { path }
     );
@@ -504,6 +518,7 @@ function toast(msg) {
 
 
 async function exportJson() {
+  _dbg('exportJson() entered');
   let path;
   try {
     const dl = await window.__TAURI_INTERNALS__.invoke(
@@ -517,7 +532,7 @@ async function exportJson() {
     );
     if (!path) return;
   } catch (e) {
-    console.warn("export dialog:", e);
+    _dbg("export dialog error: " + e.message); console.warn("export dialog:", e);
     return;
   }
   try {
