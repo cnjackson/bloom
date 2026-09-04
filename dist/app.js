@@ -100,9 +100,19 @@ function render() {
     emptyMsg.hidden = false;
   } else {
     emptyMsg.hidden = true;
-    for (const r of state.rules) {
+    // Sort purely for display - the persisted order on disk stays
+    // insertion order so reloading still gives the user what they typed.
+    const rules = state.sort_dir === 'asc'
+      ? [...state.rules].sort((a, b) => a.trigger.localeCompare(b.trigger, undefined, { sensitivity: 'base' }))
+      : state.sort_dir === 'desc'
+      ? [...state.rules].sort((a, b) => b.trigger.localeCompare(a.trigger, undefined, { sensitivity: 'base' }))
+      : state.rules;
+    for (const r of rules) {
       rulesBody.appendChild(renderRow(r));
     }
+    // Update the sort indicator arrow on the header.
+    const ind = $("triggerSortIndicator");
+    if (ind) ind.textContent = state.sort_dir === 'asc' ? "▲" : state.sort_dir === 'desc' ? "▼" : "";
   }
   $("autostartCheckbox").checked = !!state.start_with_windows;
   $("debugLogCheckbox").checked = !!state.show_debug_log;
@@ -551,6 +561,15 @@ async function exportJson() {
 }
 
 
+
+// ---------- sort ----------
+$("triggerSortHeader").addEventListener("click", () => {
+  // null -> asc -> desc -> null
+  if (state.sort_dir === null || state.sort_dir === undefined) state.sort_dir = "asc";
+  else if (state.sort_dir === "asc") state.sort_dir = "desc";
+  else state.sort_dir = null;
+  render();
+});
 
 // ---------- wire up ----------
 $("addBtn").addEventListener("click", addRule);

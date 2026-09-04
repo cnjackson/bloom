@@ -382,6 +382,15 @@
       font-family: var(--mono);
     }
     .edit-enabled-row { margin-top: 4px; }
+
+    /* ---------- Sortable column header ---------- */
+    th.sortable:hover { color: var(--fg); }
+    .sort-indicator {
+      display: inline-block; margin-left: 6px;
+      color: var(--muted); font-size: 10px; line-height: 1;
+      vertical-align: middle; min-width: 8px;
+    }
+    .sort-indicator.active { color: var(--fg); }
   </style>
         </head>
         <body>
@@ -429,7 +438,7 @@
   <main>
     <table id="rulesTable">
       <thead>
-        <tr><th style="width:22%">Trigger</th><th></th><th>Replacement</th><th style="width:70px;">On</th><th></th><th></th></tr>
+        <tr><th class="sortable" id="triggerSortHeader" data-sort-key="trigger" style="width:22%; cursor:pointer; user-select:none;">Trigger <span id="triggerSortIndicator" class="sort-indicator"></span></th><th></th><th>Replacement</th><th style="width:70px;">On</th><th></th><th></th></tr>
       </thead>
       <tbody id="rulesBody"></tbody>
     </table>
