@@ -16,7 +16,7 @@ if (Test-Path $regPath) {
 
 New-Item -Path $regPath -Force | Out-Null
 Set-ItemProperty -Path $regPath -Name "DisplayName"        -Value "Bloom"
-Set-ItemProperty -Path $regPath -Name "Publisher"          -Value "Charlie"
+Set-ItemProperty -Path $regPath -Name "Publisher"          -Value "JackApps"
 Set-ItemProperty -Path $regPath -Name "DisplayVersion"     -Value "0.1.0"
 Set-ItemProperty -Path $regPath -Name "InstallLocation"    -Value $installDir
 Set-ItemProperty -Path $regPath -Name "DisplayIcon"        -Value "$installDir\bloom.exe,0"
