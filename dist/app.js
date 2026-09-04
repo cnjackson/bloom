@@ -297,12 +297,13 @@ async function saveAll() {
   // Empty box = None (expand everywhere); non-empty = explicit list
   const scopedTo = scopedToText ? scopedToText.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : null;
   try {
-      const res = await invoke("save_all", {
-        startWithWindows: autostart,
-        blacklist,
-        scopedTo,
-        theme: state.theme,
-      });
+        const res = await invoke("save_all", {
+          startWithWindows: autostart,
+          blacklist,
+          scopedTo,
+          theme: state.theme,
+          showDebugLog: state.show_debug_log,
+        });
       state.start_with_windows = res.start_with_windows;
       state.blacklist = res.blacklist;
       state.scoped_to = res.scoped_to;
