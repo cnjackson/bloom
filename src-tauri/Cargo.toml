@@ -2,7 +2,7 @@
 name = "bloom"
 version = "0.1.0"
 description = "Bloom — system-wide text replacement for Windows (macOS Text Replacement parity)"
-authors = ["JackApps"]
+authors = ["ub42"]
 edition = "2021"
 rust-version = "1.77.2"
 
