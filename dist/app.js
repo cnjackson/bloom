@@ -315,31 +315,23 @@ async function saveAll() {
 }
 
 async function importJson() {
-  // Use the native file picker. Filter to JSON only.
+  // Native file picker via tauri-plugin-dialog
   let path;
   try {
-    const selected = await window.__TAURI__.core.invoke("plugin:dialog|open", {
-      options: {
-        multiple: false,
-        directory: false,
-        filters: [{ name: "Bloom rules", extensions: ["json"] }],
-      },
+    path = await window.__TAURI__.dialog.open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Bloom rules", extensions: ["json"] }],
     });
-    if (!selected || (typeof selected === "string" && !selected.trim())) return;
-    path = selected;
+    if (!path || (typeof path === "string" && !path.trim())) return;
   } catch (e) {
     console.warn("import dialog:", e);
     return;
   }
-  // Read + parse the file ourselves so we can compute conflicts before
-  // showing the modal. The Rust side does the same validation as a
-  // defense-in-depth (merge_import calls store::validate).
-  let incoming;
+  // Read the file via tauri-plugin-fs
+  let raw;
   try {
-    const txt = await window.__TAURI__.core.invoke("plugin:fs|read_text_file", {
-      path,
-    });
-    incoming = JSON.parse(txt);
+    raw = await window.__TAURI__.fs.readTextFile(path);
   } catch (e) {
     alert(
       `Import failed:\n${e}\n\n` +
@@ -347,11 +339,17 @@ async function importJson() {
     );
     return;
   }
+  let incoming;
+  try { incoming = JSON.parse(raw); }
+  catch (e) {
+    alert(`Import failed: file is not valid JSON.\n${e}`);
+    return;
+  }
   if (!incoming || !Array.isArray(incoming.rules)) {
     alert("Import failed: file is not a Bloom rules.json (missing 'rules' array).");
     return;
   }
-  // Compute conflicts (case-insensitive trigger match).
+  // Compute conflicts (case-insensitive trigger match)
   const existing = state.rules || [];
   const existing_lc = new Map(existing.map((r) => [r.trigger.toLowerCase(), r]));
   const incoming_rules = incoming.rules;
@@ -370,7 +368,7 @@ async function importJson() {
     }
   }
   if (conflicts.length === 0) {
-    // No conflicts — apply directly via merge_import with empty decisions.
+    // No conflicts: apply directly via merge_import with empty decisions.
     try {
       const res = await invoke("merge_import", { path, decisions: {} });
       applyImportedConfig(res);
@@ -380,7 +378,6 @@ async function importJson() {
     }
     return;
   }
-  // Show the conflict modal with checkboxes. Default unchecked (Skip).
   showImportConflicts(path, incoming_rules.length, conflicts);
 }
 
@@ -498,11 +495,9 @@ async function exportJson() {
   try {
     const dl = await window.__TAURI__.path.downloadDir().catch(() => null);
     const suggested = (dl ? dl + "\\" : "") + "bloom-rules.json";
-    path = await window.__TAURI__.core.invoke("plugin:dialog|save", {
-      options: {
-        defaultPath: suggested,
-        filters: [{ name: "Bloom rules", extensions: ["json"] }],
-      },
+    path = await window.__TAURI__.dialog.save({
+      defaultPath: suggested,
+      filters: [{ name: "Bloom rules", extensions: ["json"] }],
     });
     if (!path) return; // user cancelled
   } catch (e) {
