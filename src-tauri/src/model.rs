@@ -45,30 +45,36 @@ pub struct Config {
     #[serde(default)]
     pub scoped_to: Option<Vec<String>>,
     #[serde(default = "default_theme")]
-    pub theme: Theme,
-    pub rules: Vec<Rule>,
-}
+        pub theme: Theme,
+        /// Show the in-page debug log overlay. Off by default; user opt-in via
+        /// the Settings modal. When on, app.js console.log/warn calls surface
+        /// in a fixed-position <pre> at the bottom-right of the rules window.
+        #[serde(default)]
+        pub show_debug_log: bool,
+        pub rules: Vec<Rule>,
+    }
 
-fn default_theme() -> Theme {
-    Theme { mode: "dark".into() }
-}
+    fn default_theme() -> Theme {
+        Theme { mode: "dark".into() }
+    }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            version: SCHEMA_VERSION,
-            start_with_windows: true,
-            blacklist: vec![
-                "KeePass.exe".into(),
-                "1password.exe".into(),
-                "Bitwarden.exe".into(),
-            ],
-            scoped_to: None,
-            theme: default_theme(),
-            rules: vec![],
+    impl Default for Config {
+        fn default() -> Self {
+            Self {
+                version: SCHEMA_VERSION,
+                start_with_windows: true,
+                blacklist: vec![
+                    "KeePass.exe".into(),
+                    "1password.exe".into(),
+                    "Bitwarden.exe".into(),
+                ],
+                scoped_to: None,
+                theme: default_theme(),
+                show_debug_log: false,
+                rules: vec![],
+            }
         }
     }
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RulesError {

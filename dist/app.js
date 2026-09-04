@@ -12,6 +12,7 @@ const state = {
   blacklist: [],
   scoped_to: null,
   theme: { mode: "dark" },
+  show_debug_log: false,
   dirty: false,
   newRuleId: 0,
 };
@@ -49,6 +50,7 @@ async function saveTheme(mode) {
       blacklist: state.blacklist,
       scopedTo: state.scoped_to,
       theme: state.theme,
+      showDebugLog: state.show_debug_log,
     });
     state.theme = res.theme;
   } catch (e) {
@@ -56,6 +58,24 @@ async function saveTheme(mode) {
   }
 }
 
+
+
+// ---------- Console hook ----------
+// Pipe console.log / console.warn / console.error to the in-page debug
+// overlay (visible only when state.show_debug_log is true). The actual
+// native console is preserved as a fallback.
+(function patchConsole() {
+  const origLog = console.log;
+  const origWarn = console.warn;
+  const origError = console.error;
+  const fmt = (...args) => args.map(a => {
+    if (typeof a === "string") return a;
+    try { return JSON.stringify(a); } catch (_) { return String(a); }
+  }).join(" ");
+  console.log = (...a) => { try { _dbg(fmt(...a)); } catch(_) {} origLog(...a); };
+  console.warn = (...a) => { try { _dbg("[warn] " + fmt(...a)); } catch(_) {} origWarn(...a); };
+  console.error = (...a) => { try { _dbg("[error] " + fmt(...a)); } catch(_) {} origError(...a); };
+})();
 
 function _dbg(msg) {
   const el = document.getElementById("dbg");
@@ -85,6 +105,7 @@ function render() {
     }
   }
   $("autostartCheckbox").checked = !!state.start_with_windows;
+  $("debugLogCheckbox").checked = !!state.show_debug_log;
   // Never overwrite a focused input: it resets the caret and breaks editing.
   const bl = $("blacklistBox");
   const sl = $("scopedToBox");
@@ -507,6 +528,14 @@ function applyImportedConfig(res) {
 
 // Tiny toast: 3 seconds, fade.
 let _toastTimer = null;
+
+// Show/hide the debug overlay based on state.show_debug_log.
+function applyDebugLogVisibility() {
+  const el = document.getElementById("dbg");
+  if (!el) return;
+  el.style.display = state.show_debug_log ? "block" : "none";
+}
+
 function toast(msg) {
   const t = $("toast");
   t.textContent = msg;
@@ -562,6 +591,7 @@ for (const r of document.querySelectorAll('input[name="theme"]')) {
   r.addEventListener("change", (e) => saveTheme(e.target.value));
 }
 $("autostartCheckbox").addEventListener("change", () => { state.dirty = true; render(); });
+$("debugLogCheckbox").addEventListener("change", () => { state.show_debug_log = $("debugLogCheckbox").checked; state.dirty = true; render(); });
 $("blacklistBox").addEventListener("input", () => { state.dirty = true; render(); });
 $("scopedToBox").addEventListener("input", () => { state.dirty = true; render(); });
 
@@ -635,6 +665,7 @@ document.addEventListener("keydown", (e) => {
     state.start_with_windows = cfg.start_with_windows ?? true;
     state.scoped_to = cfg.scoped_to ?? null;
     state.theme = cfg.theme ?? { mode: "dark" };
+    state.show_debug_log = cfg.show_debug_log ?? false;
   $("scopedToBox").value = (state.scoped_to ?? []).join("\n");
     applyTheme(state.theme.mode); // apply BEFORE render so colors load first
     state.dirty = false;

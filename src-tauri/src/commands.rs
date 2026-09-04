@@ -125,11 +125,13 @@ pub fn save_all(
     blacklist: Vec<String>,
     scoped_to: Option<Vec<String>>,
     theme: Option<Theme>,
+    show_debug_log: bool,
 ) -> Result<Config, String> {
     let mut cfg = state.config.lock().unwrap();
     cfg.start_with_windows = start_with_windows;
     cfg.blacklist = blacklist;
     cfg.scoped_to = scoped_to;
+    cfg.show_debug_log = show_debug_log;
     if let Some(t) = theme {
         cfg.theme = t;
     }
