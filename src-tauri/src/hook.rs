@@ -17,7 +17,9 @@ use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
     VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
-    VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_PRIOR, VK_RETURN,
+    VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_3,
+    VK_OEM_4, VK_OEM_5, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS,
+    VK_OEM_PERIOD, VK_OEM_PLUS, VK_PRIOR, VK_RETURN,
     VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB, VK_UP, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -227,15 +229,26 @@ fn vk_action(vk: VIRTUAL_KEY) -> BufAction {
             return BufAction::Backspace;
         }
     let c = match v {
-        0x41..=0x5A => ((v - 0x41) + b'a' as u16) as u8 as char,
-        0x30..=0x39 => v as u8 as char,
-        x if x == VK_SPACE.0 => ' ',
-        x if x == VK_RETURN.0 => '\n',
-        // OEM keys, IME, function keys, and friends: ignore (a trigger
-        // attached to a Tab or arrow shouldn't expand).
-        _ => return BufAction::Ignore,
-    };
-    BufAction::Char(c)
+            0x41..=0x5A => ((v - 0x41) + b'a' as u16) as u8 as char,
+            0x30..=0x39 => v as u8 as char,
+            x if x == VK_SPACE.0 => ' ',
+            x if x == VK_RETURN.0 => '\n',
+            x if x == VK_OEM_1.0 => ';',   // ;: on US layout
+            x if x == VK_OEM_2.0 => '/',   // /?
+            x if x == VK_OEM_3.0 => '`',   // `~
+            x if x == VK_OEM_4.0 => '[',   // [{
+            x if x == VK_OEM_5.0 => '\\',  // \|
+            x if x == VK_OEM_6.0 => ']',   // ]}
+            x if x == VK_OEM_7.0 => '\'',  // '"
+            x if x == VK_OEM_MINUS.0 => '-', // -_
+            x if x == VK_OEM_PLUS.0 => '=',  // =+
+            x if x == VK_OEM_COMMA.0 => ',',  // ,<
+            x if x == VK_OEM_PERIOD.0 => '.', // .>
+            // OEM keys, IME, function keys, and friends: ignore (a trigger
+            // attached to a Tab or arrow shouldn't expand).
+            _ => return BufAction::Ignore,
+        };
+        BufAction::Char(c)
 }
 
 /// Foreground app lookup + global filter check. exe is lowercase.
