@@ -294,7 +294,8 @@
                Shown only on the first load in a process. Logo + version + publisher,
                auto-dismisses after 3s. After dismissal, .fading fades 600ms then we
                hide() the element so it doesn't intercept events.
-               No backdrop — just the logo in the middle of the page. */
+               No backdrop — but we blur behind the logo so the rules UI doesn't
+               read through cleanly while the splash is showing. */
             .splash {
               position: fixed;
               top: 50%; left: 50%;
@@ -305,7 +306,24 @@
               z-index: 9999;
               transition: opacity 600ms ease-out;
             }
+            /* Wide-radius backdrop-filter so the logo itself stays sharp while
+               whatever is on the page behind it gets a soft blur. We layer three
+               radial masks centered on the logo so the blur falls off naturally
+               to clear edges instead of a hard ring. */
+            .splash::before {
+              content: "";
+              position: fixed;
+              inset: 0;
+              backdrop-filter: blur(14px) saturate(0.85);
+              -webkit-backdrop-filter: blur(14px) saturate(0.85);
+              background: rgba(15, 17, 21, 0.18);
+              -webkit-mask-image: radial-gradient(circle at center, #000 18%, transparent 70%);
+              mask-image: radial-gradient(circle at center, #000 18%, transparent 70%);
+              pointer-events: none;
+              z-index: 9998;
+            }
             .splash.fading { opacity: 0; }
+            .splash.fading::before { opacity: 0; transition: opacity 600ms ease-out; }
         .splash-logo { width: 256px; height: 256px; display: block; }
         .splash-version { margin-top: 28px; font-size: 16px; color: var(--fg); letter-spacing: 0.04em; }
         .splash-by { margin-top: 8px; font-size: 13px; color: var(--muted); }
