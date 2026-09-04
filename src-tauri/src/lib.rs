@@ -49,36 +49,49 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(state)
+        // Single-instance lock: a second copy of bloom.exe sends a payload
+        // to the running instance (we ignore it) and exits immediately,
+        // so we never end up with two `WH_KEYBOARD_LL` hooks competing.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // The user launched a second copy; bring the existing
+            // rules window to the front so the click does something
+            // useful instead of dying silently.
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         )) // LaunchAgent arg is a no-op on Windows; plugin API requires it.
         .setup(|app| {
-                    tray::install(app)?;
-                    hook::start(app.handle().clone());
-                    // Show the rules window on first process launch. This makes
-                    // the startup splash visible alongside the rules UI — the
-                    // splash overlay fades 600ms after its 3-second timer, so
-                    // the user lands on the rules window with no extra click.
-                    // The window stays open; closing it returns it to the tray
-                    // per the existing on_window_event handler.
-                    if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.show();
-                        let _ = win.set_focus();
-                    }
-                    Ok(())
-                })
+            tray::install(app)?;
+            hook::start(app.handle().clone());
+            // Show the rules window on first process launch. This makes
+            // the startup splash visible alongside the rules UI — the
+            // splash overlay is removed after its 3-second timer, so the
+            // user lands on the rules window with no extra click.
+            // The window stays open; closing it returns it to the tray
+            // per the existing on_window_event handler.
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
-                    commands::get_config,
-                    commands::add_rule,
-                    commands::update_rule,
-                    commands::delete_rule,
-                    commands::save_all,
-                    commands::import_json,
-                    commands::export_json,
-                    commands::get_app_meta,
-                ])
+            commands::get_config,
+            commands::add_rule,
+            commands::update_rule,
+            commands::delete_rule,
+            commands::save_all,
+            commands::import_json,
+            commands::export_json,
+            commands::get_app_meta,
+        ])
         .on_window_event(|window, event| {
             // Hide instead of close when the user clicks the X. The process
             // stays alive in the tray; quitting requires ending it from Task
