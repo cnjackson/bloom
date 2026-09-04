@@ -315,29 +315,44 @@ async function saveAll() {
 }
 
 async function importJson() {
-  // Native file picker via tauri-plugin-dialog
+  // Native file picker via tauri-plugin-dialog, invoked directly through
+  // __TAURI_INTERNALS__ so we don't need the plugin's JS wrapper to be
+  // loaded. The Rust side handles the dialog.
   let path;
   try {
-    path = await window.__TAURI__.dialog.open({
-      multiple: false,
-      directory: false,
-      filters: [{ name: "Bloom rules", extensions: ["json"] }],
-    });
-    if (!path || (typeof path === "string" && !path.trim())) return;
+    const selected = await window.__TAURI_INTERNALS__.invoke(
+      "plugin:dialog|open",
+      {
+        options: {
+          multiple: false,
+          directory: false,
+          filters: [{ name: "Bloom rules", extensions: ["json"] }],
+        },
+      }
+    );
+    if (!selected || (typeof selected === "string" && !selected.trim())) return;
+    path = typeof selected === "string" ? selected : String(selected || "").trim();
+    if (!path) return;
   } catch (e) {
     console.warn("import dialog:", e);
     return;
   }
-  // Read the file via tauri-plugin-fs
+  // Read the file via tauri-plugin-fs (returns string when text mode)
   let raw;
   try {
-    raw = await window.__TAURI__.fs.readTextFile(path);
+    raw = await window.__TAURI_INTERNALS__.invoke(
+      "plugin:fs|read_text_file",
+      { path }
+    );
   } catch (e) {
     alert(
       `Import failed:\n${e}\n\n` +
       `Check the path is a valid JSON file and matches the Bloom rules schema.`
     );
     return;
+  }
+  if (raw instanceof ArrayBuffer || raw instanceof Uint8Array) {
+    raw = new TextDecoder("utf-8").decode(raw);
   }
   let incoming;
   try { incoming = JSON.parse(raw); }
@@ -349,7 +364,6 @@ async function importJson() {
     alert("Import failed: file is not a Bloom rules.json (missing 'rules' array).");
     return;
   }
-  // Compute conflicts (case-insensitive trigger match)
   const existing = state.rules || [];
   const existing_lc = new Map(existing.map((r) => [r.trigger.toLowerCase(), r]));
   const incoming_rules = incoming.rules;
@@ -368,7 +382,6 @@ async function importJson() {
     }
   }
   if (conflicts.length === 0) {
-    // No conflicts: apply directly via merge_import with empty decisions.
     try {
       const res = await invoke("merge_import", { path, decisions: {} });
       applyImportedConfig(res);
@@ -493,13 +506,16 @@ function toast(msg) {
 async function exportJson() {
   let path;
   try {
-    const dl = await window.__TAURI__.path.downloadDir().catch(() => null);
+    const dl = await window.__TAURI_INTERNALS__.invoke(
+      "plugin:path|download_dir",
+      {}
+    ).catch(() => null);
     const suggested = (dl ? dl + "\\" : "") + "bloom-rules.json";
-    path = await window.__TAURI__.dialog.save({
-      defaultPath: suggested,
-      filters: [{ name: "Bloom rules", extensions: ["json"] }],
-    });
-    if (!path) return; // user cancelled
+    path = await window.__TAURI_INTERNALS__.invoke(
+      "plugin:dialog|save",
+      { options: { defaultPath: suggested, filters: [{ name: "Bloom rules", extensions: ["json"] }] } }
+    );
+    if (!path) return;
   } catch (e) {
     console.warn("export dialog:", e);
     return;
