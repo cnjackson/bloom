@@ -164,7 +164,11 @@ pub fn merge_import(
     decisions: std::collections::HashMap<String, String>,
 ) -> Result<Config, String> {
     let txt = fs::read_to_string(&path).map_err(err)?;
-    let incoming: Config = serde_json::from_str(&txt).map_err(err)?;
+    let mut incoming: Config = serde_json::from_str(&txt).map_err(err)?;
+    // merge_import auto-assigns ids for rules with `id == ""` (the typical
+    // case for fixtures that were hand-authored or exported before ids
+    // were present). Store::validate tolerates empty ids for the same
+    // reason; we handle non-empty ids in the conflict branch below.
     store::validate(&incoming).map_err(err)?;
 
     let mut current = state.config.lock().unwrap();

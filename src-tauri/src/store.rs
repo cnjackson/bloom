@@ -65,11 +65,13 @@ pub fn validate(cfg: &Config) -> Result<(), RulesError> {
         )));
     }
     let mut seen_ids = std::collections::HashSet::new();
-    let mut seen_triggers = std::collections::HashSet::new();
-    for r in &cfg.rules {
-        if !seen_ids.insert(&r.id) {
-            return Err(RulesError::Validation(format!("duplicate id: {}", r.id)));
-        }
+            // Empty ids are auto-assigned by Tauri at append time, so we
+            // don't treat them as duplicates here.
+        let mut seen_triggers = std::collections::HashSet::new();
+        for r in &cfg.rules {
+            if !r.id.is_empty() && !seen_ids.insert(&r.id) {
+                return Err(RulesError::Validation(format!("duplicate id: {}", r.id)));
+            }
         if r.trigger.is_empty() {
             return Err(RulesError::Validation("trigger cannot be empty".into()));
         }
