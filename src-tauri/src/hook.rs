@@ -86,19 +86,24 @@ thread_local! {
 }
 
 unsafe extern "system" fn hook_proc(ncode: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    // HOOK can be null on early events if SetWindowsHookExW failed but
+    // the message loop still gets messages - bail safely to avoid UB.
+    if HOOK.0.is_null() {
+        return unsafe { CallNextHookEx(None, ncode, wparam, lparam) };
+    }
     if ncode < 0 {
-        return CallNextHookEx(Some(HOOK), ncode, wparam, lparam);
+        return unsafe { CallNextHookEx(Some(HOOK), ncode, wparam, lparam) };
     }
     let st: &KBDLLHOOKSTRUCT = std::mem::transmute(lparam.0 as *const KBDLLHOOKSTRUCT);
     // Pass through our own synthetic input (re-processing would
     // corrupt the buffer and re-trigger).
     if (st.flags & LLKHF_INJECTED).0 != 0 {
-        return CallNextHookEx(Some(HOOK), ncode, wparam, lparam);
+        return unsafe { CallNextHookEx(Some(HOOK), ncode, wparam, lparam) };
     }
     if wparam.0 as u32 == 0x0100 || wparam.0 as u32 == 0x0104 {
         handle_key(VIRTUAL_KEY(st.vkCode as u16));
     }
-    CallNextHookEx(Some(HOOK), ncode, wparam, lparam)
+    unsafe { CallNextHookEx(Some(HOOK), ncode, wparam, lparam) }
 }
 
 fn handle_key(vk: VIRTUAL_KEY) {

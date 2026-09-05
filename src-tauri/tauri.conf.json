@@ -35,7 +35,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "icons/icon-32.png": "icons/icon-32.png"
+      "icons/icon-32.png": "icon-32.png"
     },
     "android": {
       "debugApplicationIdSuffix": ".debug"

@@ -30,17 +30,34 @@ fn tray_icon_rgba(app: &tauri::AppHandle) -> Image<'static> {
         Image::new_owned(buf, W, H)
     }
 
-    // 1. Production: resource_dir is the install root; MSI copies the
-    //    resources there. The PNG is embedded as a separate 256x256 / 32x32
-    //    asset that Tauri can resolve via path().
-    if let Ok(dir) = app.path().resource_dir() {
-        let candidate = dir.join("icons").join("icon-32.png");
-        if let Ok(bytes) = std::fs::read(&candidate) {
-            if let Ok(img) = image::load_from_memory(&bytes) {
-                let rgba = img.to_rgba8();
-                let (w, h) = (rgba.width(), rgba.height());
-                return Image::new_owned(rgba.into_raw(), w, h);
+    // Resource lookup helper: try each relative path under `dir`.
+    let try_paths = |dir: &std::path::Path| -> Option<Image<'static>> {
+        let candidates: &[&str] = &[
+            "icon-32.png",
+            "icons/icon-32.png",
+            "resources/icons/icon-32.png",
+        ];
+        for rel in candidates {
+            let candidate = dir.join(rel);
+            if let Ok(bytes) = std::fs::read(&candidate) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let rgba = img.to_rgba8();
+                    let (w, h) = (rgba.width(), rgba.height());
+                    return Some(Image::new_owned(rgba.into_raw(), w, h));
+                }
             }
+        }
+        None
+    };
+
+    // 1. Production: MSI bundles the icon next to the exe via
+    //    `bundle.resources`. On Windows MSI installs, `resource_dir()`
+    //    resolves to the install dir itself, so the icon lives at
+    //    `<install_dir>/icon-32.png`. Try a few common sub-path
+    //    patterns to be lenient with NSIS/dev installs.
+    if let Ok(dir) = app.path().resource_dir() {
+        if let Some(img) = try_paths(&dir) {
+            return img;
         }
     }
 
@@ -53,6 +70,17 @@ fn tray_icon_rgba(app: &tauri::AppHandle) -> Image<'static> {
             let rgba = img.to_rgba8();
             let (w, h) = (rgba.width(), rgba.height());
             return Image::new_owned(rgba.into_raw(), w, h);
+        }
+    }
+
+    // 3. Last resort: try the install dir root directly (handles
+    //    the case where `bundle.resources` didn't fire for whatever
+    //    reason - e.g. a custom install script copied the file).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            if let Some(img) = try_paths(parent) {
+                return img;
+            }
         }
     }
 

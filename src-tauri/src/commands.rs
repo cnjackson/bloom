@@ -136,7 +136,7 @@ pub fn save_all(
         cfg.theme = t;
     }
     store::save(&state.config_path, &cfg).map_err(err)?;
-    apply_autostart(&app, start_with_windows).map_err(err)?;
+    apply_autostart(&app, start_with_windows)?;
     Ok(cfg.clone())
 }
 
@@ -283,13 +283,29 @@ fn validate_rule_fields(rule: &mut Rule) -> Result<(), String> {
     Ok(())
 }
 
-fn apply_autostart(app: &AppHandle, enable: bool) -> tauri::Result<()> {
+fn apply_autostart(app: &AppHandle, enable: bool) -> Result<(), String> {
     use tauri_plugin_autostart::ManagerExt;
     let m = app.autolaunch();
-    if enable {
-        m.enable().ok();
+    let res = if enable {
+        m.enable()
     } else {
-        m.disable().ok();
+        m.disable()
+    };
+    match res {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // The rules.json was already saved. Reverting to keep on-disk
+            // config consistent with what the OS actually does would be
+            // better; for now we surface the error so the UI can show it.
+            let msg = if enable {
+                format!(
+                    "Bloom saved, but autostart couldn't be enabled: {e}. \
+                     Check the autostart plugin docs or run as a per-user install."
+                )
+            } else {
+                format!("Bloom saved, but autostart couldn't be disabled: {e}")
+            };
+            Err(msg)
+        }
     }
-    Ok(())
 }
