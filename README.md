@@ -1,11 +1,12 @@
 # Bloom
 
-A system-wide text-replacement expander for Windows 11, modelled on
-macOS System Settings → Keyboard → Text Replacements. Bloom watches
-keystrokes globally and expands triggers into replacements as you type.
+A system-wide text-replacement expander for Windows 11. Bloom watches
+keystrokes globally and expands triggers into replacements as you
+type.
 
-**Why this exists:** macOS has first-class global text substitution.
-Windows has nothing built-in. Bloom is the parity layer.
+**Why this exists:** typing common phrases over and over is tedious.
+Define a short trigger once; Bloom types the long version for you,
+everywhere on the system, in any app.
 
 ## Install
 
