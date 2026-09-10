@@ -15,8 +15,8 @@ use std::time::Duration;
 
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
-    VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
+    GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
+    KEYEVENTF_KEYUP, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
     VK_HOME, VK_INSERT, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_3,
     VK_OEM_4, VK_OEM_5, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS,
     VK_OEM_PERIOD, VK_OEM_PLUS, VK_PRIOR, VK_RETURN,
@@ -101,13 +101,17 @@ unsafe extern "system" fn hook_proc(ncode: i32, wparam: WPARAM, lparam: LPARAM) 
         return unsafe { CallNextHookEx(Some(HOOK), ncode, wparam, lparam) };
     }
     if wparam.0 as u32 == 0x0100 || wparam.0 as u32 == 0x0104 {
-        handle_key(VIRTUAL_KEY(st.vkCode as u16));
-    }
+            // Detect Shift state for shifted chars like '!' (Shift+1) so
+            // triggers like '!!critique' work. Modifier-only keypresses
+            // (Shift itself) are handled in handle_key and return Ignore.
+            let shift_down = unsafe { (GetAsyncKeyState(0x10) as i16) < 0 };
+            handle_key(VIRTUAL_KEY(st.vkCode as u16), shift_down);
+        }
     unsafe { CallNextHookEx(Some(HOOK), ncode, wparam, lparam) }
 }
 
-fn handle_key(vk: VIRTUAL_KEY) {
-    match vk_action(vk) {
+fn handle_key(vk: VIRTUAL_KEY, shift_down: bool) {
+    match vk_action(vk, shift_down) {
         BufAction::Char(c) => {
             if c == ' ' || c == '\n' {
                 let text = BUFFER.with(|b| {
@@ -232,54 +236,76 @@ enum BufAction {
 
 /// Map virtual-key codes to actions (US layout). Letters folded to
 /// lowercase in the buffer (matching is case-insensitive).
-fn vk_action(vk: VIRTUAL_KEY) -> BufAction {
+fn vk_action(vk: VIRTUAL_KEY, shift_down: bool) -> BufAction {
     let v = vk.0;
-        // Modifiers, navigation, function, edit keys we don't act on. These
-        // arrive via `handle_key` but should never reset the user's typing buffer.
-        if v == VK_ESCAPE.0
-            || v == VK_TAB.0
-            || v == VK_LEFT.0
-            || v == VK_RIGHT.0
-            || v == VK_UP.0
-            || v == VK_DOWN.0
-            || v == VK_HOME.0
-            || v == VK_END.0
-            || v == VK_PRIOR.0
-            || v == VK_NEXT.0
-            || v == VK_INSERT.0
-            || v == VK_DELETE.0
-            || v == 0x10
-            || v == 0x11
-            || v == 0x12
-            || v == 0x5B
-            || (0x70..=0x7B).contains(&v)
-        {
-            return BufAction::Ignore;
+    // Modifiers, navigation, function, edit keys we don't act on. These
+    // arrive via `handle_key` but should never reset the user's typing buffer.
+    if v == VK_ESCAPE.0
+        || v == VK_TAB.0
+        || v == VK_LEFT.0
+        || v == VK_RIGHT.0
+        || v == VK_UP.0
+        || v == VK_DOWN.0
+        || v == VK_HOME.0
+        || v == VK_END.0
+        || v == VK_PRIOR.0
+        || v == VK_NEXT.0
+        || v == VK_INSERT.0
+        || v == VK_DELETE.0
+        || v == 0x10
+        || v == 0x11
+        || v == 0x12
+        || v == 0x5B
+        || (0x70..=0x7B).contains(&v)
+    {
+        return BufAction::Ignore;
+    }
+    if v == VK_BACK.0 as u16 {
+        return BufAction::Backspace;
+    }
+    let c: char = match v {
+        0x41..=0x5A => ((v - 0x41) + b'a' as u16) as u8 as char,
+        // Digit row: 1..=0 with Shift gives us the symbols needed for
+        // !!-prefix triggers (Shift+1 = '!'). Without the shift branch
+        // triggers like '!!critique' or '/perf' would never fire
+        // because the buffer accumulates unshifted digits/symbols.
+        0x30..=0x39 => {
+            if shift_down {
+                match v {
+                    0x31 => '!',
+                    0x32 => '@',
+                    0x33 => '#',
+                    0x34 => '$',
+                    0x35 => '%',
+                    0x36 => '^',
+                    0x37 => '&',
+                    0x38 => '*',
+                    0x39 => '(',
+                    // Shift+0 = ')' on US layout; 0 is outside 0x30..=0x39
+                    _ => v as u8 as char,
+                }
+            } else {
+                v as u8 as char
+            }
         }
-        if v == VK_BACK.0 as u16 {
-            return BufAction::Backspace;
-        }
-    let c = match v {
-            0x41..=0x5A => ((v - 0x41) + b'a' as u16) as u8 as char,
-            0x30..=0x39 => v as u8 as char,
-            x if x == VK_SPACE.0 => ' ',
-            x if x == VK_RETURN.0 => '\n',
-            x if x == VK_OEM_1.0 => ';',   // ;: on US layout
-            x if x == VK_OEM_2.0 => '/',   // /?
-            x if x == VK_OEM_3.0 => '`',   // `~
-            x if x == VK_OEM_4.0 => '[',   // [{
-            x if x == VK_OEM_5.0 => '\\',  // \|
-            x if x == VK_OEM_6.0 => ']',   // ]}
-            x if x == VK_OEM_7.0 => '\'',  // '"
-            x if x == VK_OEM_MINUS.0 => '-', // -_
-            x if x == VK_OEM_PLUS.0 => '=',  // =+
-            x if x == VK_OEM_COMMA.0 => ',',  // ,<
-            x if x == VK_OEM_PERIOD.0 => '.', // .>
-            // OEM keys, IME, function keys, and friends: ignore (a trigger
-            // attached to a Tab or arrow shouldn't expand).
-            _ => return BufAction::Ignore,
-        };
-        BufAction::Char(c)
+        x if x == VK_SPACE.0 => ' ',
+        x if x == VK_RETURN.0 => '\n',
+        x if x == VK_OEM_1.0 => if shift_down { ':' } else { ';' }, // ;:
+        x if x == VK_OEM_2.0 => if shift_down { '?' } else { '/' }, // /?
+        x if x == VK_OEM_3.0 => if shift_down { '~' } else { '`' }, // `~
+        x if x == VK_OEM_4.0 => if shift_down { '{' } else { '[' }, // [{
+        x if x == VK_OEM_5.0 => if shift_down { '|' } else { '\\' }, // \|
+        x if x == VK_OEM_6.0 => if shift_down { '}' } else { ']' }, // ]}
+        x if x == VK_OEM_7.0 => if shift_down { '"' } else { '\'' }, // '"
+        x if x == VK_OEM_MINUS.0 => if shift_down { '_' } else { '-' }, // -_
+        x if x == VK_OEM_PLUS.0 => if shift_down { '+' } else { '=' }, // =+
+        x if x == VK_OEM_COMMA.0 => if shift_down { '<' } else { ',' }, // ,<
+        x if x == VK_OEM_PERIOD.0 => if shift_down { '>' } else { '.' }, // .>
+        // OEM keys, IME, function keys, and friends: ignore (a trigger
+        // attached to a Tab or arrow shouldn't expand).
+        _ => return BufAction::Ignore,
+    };
+    BufAction::Char(c)
 }
 
 /// Foreground app lookup + global filter check. exe is lowercase.
