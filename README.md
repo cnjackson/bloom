@@ -6,7 +6,13 @@ type.
 
 **Why this exists:** typing common phrases over and over is tedious.
 Define a short trigger once; Bloom types the long version for you,
-everywhere on the system, in any app.
+everywhere on the system, in any app. It's particularly useful for
+AI-prompt workflows in development: a trigger like `;code` expands to
+the full "Act as a senior software engineer" system prompt; a trigger
+like `/pr` becomes a structured PR-description template; `!!clarify`
+becomes a meta-prompt that asks the model to interrogate ambiguous
+input. See [Sample data: AI prompt library](#sample-data-ai-prompt-library)
+for a starter set of 23 rules tailored to this.
 
 ## Install
 
@@ -86,19 +92,42 @@ hand (with the app closed):
 ## Sample data: AI prompt library
 
 `fixtures/ai-prompt-library.json` ships 23 rule bodies that turn
-short prefixes into full system-prompt templates:
+short prefixes into full system-prompt templates. Useful for any
+flow that sends repeated text to a chat assistant, code review tool,
+or IDE-copilot:
 
-- 16 role prompts (`;code`, `;design`, `;review`, `;spec`, `;refactor`,
+- **16 role prompts** (`;code`, `;design`, `;review`, `;spec`, `;refactor`,
   `;test`, `;sec`, `;sys_agent`, `;sys_reviewer`, `;sys_architect`,
   `;ctx_stack`, `;ctx_repo`, `;go`, `;simplify`, `;gitpush`, `;short`)
-- 4 task prompts (`/pr`, `/test`, `/sec`, `/perf`)
-- 3 meta prompts (`!!clarify`, `!!think_harder`, `!!critique`)
+- **4 task prompts** (`/pr`, `/test`, `/sec`, `/perf`)
+- **3 meta prompts** (`!!clarify`, `!!think_harder`, `!!critique`)
+
+Three prefix conventions so triggers don't collide with each other:
+
+- `;name` — adopts a role ("act as …")
+- `/name` — runs a structured task
+- `!!name` — applies a meta-instruction to the next thing you type
 
 To import: Bloom → **Import** button → pick the file. The import
 resolves trigger conflicts via a per-rule modal (Overwrite / Skip).
 
 A copy is also at `~/Downloads/bloom-prompt-library.json` for quick
 testing.
+
+**Adding your own:** any rule whose body contains `{{placeholder}}`
+text will paste it back literally — Bloom does not substitute. So a
+trigger like `;bugfix` with body
+
+```
+Fix the following bug in {{REPO}}:
+
+{{BUG_DESCRIPTION}}
+
+Output: a unified diff against {{BASE_BRANCH}}.
+```
+
+will type the placeholder strings back into whatever app you're in,
+ready for you to fill in.
 
 ## Behavior you should know
 
