@@ -149,22 +149,45 @@ fn handle_key(vk: VIRTUAL_KEY) {
                     hook_debug(&format!("skip: {}", outcome.1));
                 }
                 if let Some(rule) = outcome.0 {
-                    // The user may have typed extra whitespace before the
-                    // boundary (e.g. "answer  short ") — clear the buffer
-                    // down to the trigger's start so backspaces only erase
-                    // what the user actually typed.
-                    let typed_len = BUFFER.with(|b| {
-                        let lock = b.borrow();
-                        let buf = lock.as_ref().unwrap();
-                        let inner = buf.lock().unwrap();
-                        inner.len()
-                    });
-                    hook_debug(&format!(
-                        "MATCH: {} -> {:?} (typed_len={typed_len})",
-                        rule.trigger, rule.replacement
-                    ));
-                    expand(&rule, typed_len);
-                } else if outcome.1 == "ok" {
+                                    // The user may have typed extra whitespace before the
+                                    // boundary (e.g. "answer  short ") - and may have a
+                                    // sentence prefix before the trigger too (e.g.
+                                    // "have an icecream. answer short "). Only the
+                                    // *trigger span* at the end of the buffer should be
+                                    // erased; the prefix stays put.
+                                    //
+                                    // The trailing whitespace boundary is part of the
+                                    // typed text but not part of the trigger, so we add
+                                    // 1 for it when measuring how many chars to erase.
+                                    let (typed_len, trigger_typed_len) = BUFFER.with(|b| {
+                                        let lock = b.borrow();
+                                        let buf = lock.as_ref().unwrap();
+                                        let inner = buf.lock().unwrap();
+                                        let len = inner.len();
+                                        // `rule.trigger` is the normalized trigger
+                                        // (e.g. "answer short", 12 chars). Find that
+                                        // suffix back-to-front in the buffer. Allow
+                                        // internal whitespace tolerance for the
+                                        // double-space case.
+                                        let trig_lc = rule.trigger.to_ascii_lowercase();
+                                        let buf_lc: String = inner.iter().collect::<String>().to_ascii_lowercase();
+                                        // Position of the trigger's last character in
+                                        // the buffer (1-indexed). 0 means not found
+                                        // cleanly, fall back to `len`.
+                                        let pos = buf_lc
+                                            .rfind(&trig_lc)
+                                            .map(|i| i + trig_lc.len())
+                                            .unwrap_or(len);
+                                        (len, pos)
+                                    });
+                                    // Erase the trigger + 1 trailing whitespace.
+                                    let n = trigger_typed_len + 1;
+                                    hook_debug(&format!(
+                                        "MATCH: {} -> {:?} (typed_len={typed_len} n={n})",
+                                        rule.trigger, rule.replacement
+                                    ));
+                                    expand(&rule, n);
+                                } else if outcome.1 == "ok" {
                     hook_debug("no match");
                 }
             } else {
