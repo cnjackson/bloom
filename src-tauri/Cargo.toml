@@ -1,7 +1,7 @@
 [package]
 name = "bloom"
 version = "0.1.0"
-description = "Bloom — system-wide text replacement for Windows (macOS Text Replacement parity)"
+description = "Bloom — system-wide text replacement for Windows"
 authors = ["ub42"]
 edition = "2021"
 rust-version = "1.77.2"
@@ -16,9 +16,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-# rdev dependency removed: never imported anywhere (Cargo built it with the
-# unstable_grab feature but the source only uses direct SetWindowsHookExW
-# via windows-rs). Removing shrinks build + removes unused attack surface.
 getrandom = "0.2"
 serde_json = "1.0"
 image = "0.25"
@@ -33,7 +30,6 @@ tauri-plugin-fs = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 thiserror = "2"
 
-rdev = { version = "0.5", features = ["unstable_grab"] }
 arboard = "3"
 
 [dependencies.windows]

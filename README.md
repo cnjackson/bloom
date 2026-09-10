@@ -18,8 +18,7 @@ everywhere on the system, in any app.
    admin prompt, no UAC, no `Program Files`.
 3. Bloom is installed to `%LOCALAPPDATA%\Programs\Bloom\`.
 4. A Start menu shortcut is created (`Bloom.lnk`).
-5. **Settings → Apps → Installed apps** lists Bloom as
-   `dev.cnjackson.bloom` (via per-user registry entry).
+5. **Settings → Apps → Installed apps** lists Bloom (via a per-user registry entry).
 6. Launch Bloom from the Start menu or the system tray icon.
 
 To uninstall: Settings → Apps → Bloom → Uninstall. (Or run the
@@ -191,8 +190,8 @@ That:
 2. Copies `target/release/bloom.exe` to
    `%LOCALAPPDATA%\Programs\Bloom\bloom.exe`
 3. Creates the Start menu shortcut
-4. Adds the `HKCU\Uninstall\dev.cnjackson.bloom` registry entry so
-   Settings → Apps lists Bloom
+4. Adds the per-user `HKCU\Uninstall\…` registry entry so Settings →
+   Apps lists Bloom
 
 ### Uninstall
 
@@ -226,7 +225,7 @@ cargo tauri dev
 | `src-tauri/src/commands.rs` | Tauri commands (save_all, import, export, ...) |
 | `src-tauri/src/model.rs` | Config / Rule / Theme types |
 | `src-tauri/src/tray.rs` | Tray icon + single-click → window |
-| `src-tauri/tauri.conf.json` | Bundle config, identifier `dev.cnjackson.bloom` |
+| `src-tauri/tauri.conf.json` | Bundle config, identifier `dev.cnjackson.bloom` (do not change without a Settings→Apps migration plan) |
 | `dist/index.html` | Single-file HTML+SVG+CSS shell |
 | `dist/app.js` | Plain JS frontend (no build step) |
 

@@ -265,15 +265,14 @@ pub fn export_json(
 // ---------- helpers ----------
 
 fn validate_rule_fields(rule: &mut Rule) -> Result<(), String> {
-    // Normalize: trim + collapse internal whitespace (Mac-parity
-    // multi-word triggers; "answer  short" == "answer short").
+    // Normalize: trim + collapse internal whitespace so multi-word
+        // triggers match reliably ("answer  short" becomes "answer short").
     rule.trigger = rule.trigger.split_whitespace().collect::<Vec<_>>().join(" ");
     if rule.trigger.is_empty() {
         return Err("trigger cannot be empty".into());
     }
-    // Multi-word triggers are allowed (macOS Text Replacement parity).
-    // Only trim-checked non-empty + length-capped; matching happens on
-    // token boundaries in the hook (v1.1).
+    // Multi-word triggers are allowed. Only trim-checked non-empty +
+        // length-capped; matching happens on token boundaries in the hook.
     if rule.trigger.chars().count() > MAX_TRIGGER_LEN {
         return Err(format!("trigger too long (max {})", MAX_TRIGGER_LEN));
     }

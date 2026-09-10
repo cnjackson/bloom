@@ -1,9 +1,10 @@
-# Create a per-user Start-menu shortcut for Bloom
+# Create a per-user Start-menu shortcut for Bloom. Works for any user
+# without modification - paths are read from environment variables.
 $ws = New-Object -ComObject WScript.Shell
 $shortcut = $ws.CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Bloom.lnk")
-$shortcut.TargetPath = "C:\Users\cnjac\AppData\Local\Programs\Bloom\bloom.exe"
-$shortcut.WorkingDirectory = "C:\Users\cnjac\AppData\Local\Programs\Bloom"
-$shortcut.IconLocation = "C:\Users\cnjac\AppData\Local\Programs\Bloom\bloom.exe,0"
+$shortcut.TargetPath = "$env:LOCALAPPDATA\Programs\Bloom\bloom.exe"
+$shortcut.WorkingDirectory = "$env:LOCALAPPDATA\Programs\Bloom"
+$shortcut.IconLocation = "$env:LOCALAPPDATA\Programs\Bloom\bloom.exe,0"
 $shortcut.Description = "Bloom - system-wide text replacement"
 $shortcut.Save()
 Write-Output "shortcut created: $env:APPDATA\Microsoft\Windows\Start Menu\Programs\Bloom.lnk"
