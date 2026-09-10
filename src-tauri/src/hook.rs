@@ -9,7 +9,6 @@
 //! the rule fires only when that exe owns the focused window. A
 //! global `scoped_to` field on Config adds an app-wide filter on top.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -37,7 +36,6 @@ use tauri::Manager;
 use crate::model::Rule;
 use crate::AppState;
 
-static INJECTING: AtomicBool = AtomicBool::new(false);
 static mut HOOK: HHOOK = HHOOK(std::ptr::null_mut());
 
 const BUF_MAX: usize = 64;
@@ -388,11 +386,13 @@ fn match_trigger(buffer: &str, rules: &[Rule], exe: &str) -> Option<Rule> {
             continue;
         }
         // Per-rule scope: only fire when this rule's app is the focused one.
-        if let Some(scope) = scoped_to {
-            if exe.is_empty() || scope != exe {
-                continue;
-            }
-        }
+        // Compare case-insensitively — Windows exes are normalized to lowercase
+        // by resolve_focus, but rule-authored values may have any case.
+                if let Some(scope) = scoped_to {
+                    if exe.is_empty() || !scope.eq_ignore_ascii_case(exe) {
+                        continue;
+                    }
+                }
         if head.len() >= trig.len()
             && head[head.len() - trig.len()..].eq_ignore_ascii_case(&trig)
         {
@@ -412,20 +412,35 @@ fn match_trigger(buffer: &str, rules: &[Rule], exe: &str) -> Option<Rule> {
 /// `chars().count()` (which is the *normalized* length). With extra
 /// whitespace like `"answer  short "` this differs by 1+ characters.
 fn expand(rule: &Rule, typed_len: usize) {
-    // The trigger is the last `typed_len` characters of the buffer.
-    // We backspace exactly those — neither more (would erase past text)
-    // nor fewer (would leave the trigger in place).
+    // Backspaces run synchronously on the hook thread (SendInput is
+    // fast, and the focused app needs the backspace bytes NOW). The
+    // clipboard put + Ctrl+V + 120ms wait + restore run on a worker
+    // thread so the hook doesn't stall while the paste lands.
+    //
+    // Trade-off: keystrokes that arrive during the 120ms paste window
+    // continue into the buffer. If the user pauses-and-continues, the
+    // next match might fire with stale state. Acceptable for v0.1; a
+    // future flush-pending-buffer pass would replace this.
     let n = typed_len;
     BUFFER.with(|b| {
         if let Some(buf) = b.borrow().as_ref() {
             buf.lock().unwrap().clear();
         }
     });
-    INJECTING.store(true, Ordering::SeqCst);
     let ok = unsafe { send_backspaces(n) };
     if !ok {
         hook_debug("backspace injection failed");
     }
+
+    // Hand off the rest to a worker so the hook thread returns to
+    // pumping messages immediately.
+    let replacement = rule.replacement.clone();
+    std::thread::spawn(move || {
+        paste_back(replacement);
+    });
+}
+
+fn paste_back(replacement: String) {
     let mut clip = match arboard::Clipboard::new() {
         Ok(c) => c,
         Err(e) => {
@@ -434,7 +449,7 @@ fn expand(rule: &Rule, typed_len: usize) {
         }
     };
     let original = clip.get_text().ok();
-    if clip.set_text(&rule.replacement).is_err() {
+    if clip.set_text(&replacement).is_err() {
         eprintln!("bloom: clipboard set failed");
         return;
     }
@@ -443,7 +458,6 @@ fn expand(rule: &Rule, typed_len: usize) {
     if let Some(old) = original {
         let _ = clip.set_text(&old);
     }
-    INJECTING.store(false, Ordering::SeqCst);
 }
 
 unsafe fn send_backspaces(n: usize) -> bool {

@@ -588,7 +588,12 @@ for (const r of document.querySelectorAll('input[name="theme"]')) {
   r.addEventListener("change", (e) => saveTheme(e.target.value));
 }
 $("autostartCheckbox").addEventListener("change", () => { state.dirty = true; render(); });
-$("debugLogCheckbox").addEventListener("change", () => { state.show_debug_log = $("debugLogCheckbox").checked; state.dirty = true; render(); });
+$("debugLogCheckbox").addEventListener("change", () => {
+  state.show_debug_log = $("debugLogCheckbox").checked;
+  state.dirty = true;
+  applyDebugLogVisibility();
+  render();
+});
 $("blacklistBox").addEventListener("input", () => { state.dirty = true; render(); });
 $("scopedToBox").addEventListener("input", () => { state.dirty = true; render(); });
 
