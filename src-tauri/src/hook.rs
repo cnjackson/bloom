@@ -150,38 +150,41 @@ fn handle_key(vk: VIRTUAL_KEY) {
                 }
                 if let Some(rule) = outcome.0 {
                                     // The user may have typed extra whitespace before the
-                                    // boundary (e.g. "answer  short ") - and may have a
+                                    // boundary (e.g. "answer  short ") — and may have a
                                     // sentence prefix before the trigger too (e.g.
                                     // "have an icecream. answer short "). Only the
                                     // *trigger span* at the end of the buffer should be
                                     // erased; the prefix stays put.
                                     //
-                                    // The trailing whitespace boundary is part of the
-                                    // typed text but not part of the trigger, so we add
-                                    // 1 for it when measuring how many chars to erase.
-                                    let (typed_len, trigger_typed_len) = BUFFER.with(|b| {
+                                    // The trailing whitespace boundary is included in the
+                                    // buffer (handle_key pushes it before checking), so
+                                    // the backspace count is
+                                    //     (buffer_len − trigger_start_in_buffer).
+                                    // The +1 we had before was wrong: rfind returns the
+                                    // start offset, so backspacing (pos − 0) + 1 was
+                                    // actually backspacing the whole buffer again.
+                                    let (typed_len, n) = BUFFER.with(|b| {
                                         let lock = b.borrow();
                                         let buf = lock.as_ref().unwrap();
                                         let inner = buf.lock().unwrap();
                                         let len = inner.len();
                                         // `rule.trigger` is the normalized trigger
-                                        // (e.g. "answer short", 12 chars). Find that
-                                        // suffix back-to-front in the buffer. Allow
-                                        // internal whitespace tolerance for the
-                                        // double-space case.
+                                        // (e.g. "answer short", 12 chars). Find its
+                                        // start offset back-to-front in the buffer.
+                                        // The buffer at match time includes the
+                                        // trailing whitespace boundary, so the match
+                                        // is always at len - trig_len - 1 -ish unless
+                                        // there's a sentence prefix.
                                         let trig_lc = rule.trigger.to_ascii_lowercase();
                                         let buf_lc: String = inner.iter().collect::<String>().to_ascii_lowercase();
-                                        // Position of the trigger's last character in
-                                        // the buffer (1-indexed). 0 means not found
-                                        // cleanly, fall back to `len`.
-                                        let pos = buf_lc
-                                            .rfind(&trig_lc)
-                                            .map(|i| i + trig_lc.len())
-                                            .unwrap_or(len);
-                                        (len, pos)
+                                        // Default to 0 start offset (=no prefix) only if
+                                        // somehow the trigger isn't in the buffer. The
+                                        // matcher wouldn't have fired in that case, so
+                                        // this is just defensive.
+                                        let trigger_start = buf_lc.rfind(&trig_lc).unwrap_or(0);
+                                        let n = len.saturating_sub(trigger_start);
+                                        (len, n)
                                     });
-                                    // Erase the trigger + 1 trailing whitespace.
-                                    let n = trigger_typed_len + 1;
                                     hook_debug(&format!(
                                         "MATCH: {} -> {:?} (typed_len={typed_len} n={n})",
                                         rule.trigger, rule.replacement
