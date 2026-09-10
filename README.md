@@ -11,8 +11,8 @@ AI-prompt workflows in development: a trigger like `;code` expands to
 the full "Act as a senior software engineer" system prompt; a trigger
 like `/pr` becomes a structured PR-description template; `!!clarify`
 becomes a meta-prompt that asks the model to interrogate ambiguous
-input. See [Sample data: AI prompt library](#sample-data-ai-prompt-library)
-for a starter set of 23 rules tailored to this.
+See [Sample data: AI prompt library](#sample-data-ai-prompt-library)
+for a starter set of 24 rules (in [`fixtures/ai-prompt-library.json`](fixtures/ai-prompt-library.json)) tailored to this.
 
 ## Install
 
