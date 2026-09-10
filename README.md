@@ -91,14 +91,15 @@ hand (with the app closed):
 
 ## Sample data: AI prompt library
 
-`fixtures/ai-prompt-library.json` ships 23 rule bodies that turn
+`fixtures/ai-prompt-library.json` ships 24 rule bodies that turn
 short prefixes into full system-prompt templates. Useful for any
 flow that sends repeated text to a chat assistant, code review tool,
 or IDE-copilot:
 
-- **16 role prompts** (`;code`, `;design`, `;review`, `;spec`, `;refactor`,
-  `;test`, `;sec`, `;sys_agent`, `;sys_reviewer`, `;sys_architect`,
-  `;ctx_stack`, `;ctx_repo`, `;go`, `;simplify`, `;gitpush`, `;short`)
+- **17 role prompts** (`answer short`, `;code`, `;design`, `;review`,
+  `;spec`, `;refactor`, `;test`, `;sec`, `;sys_agent`, `;sys_reviewer`,
+  `;sys_architect`, `;ctx_stack`, `;ctx_repo`, `;go`, `;simplify`,
+  `;gitpush`, `;short`)
 - **4 task prompts** (`/pr`, `/test`, `/sec`, `/perf`)
 - **3 meta prompts** (`!!clarify`, `!!think_harder`, `!!critique`)
 
