@@ -293,18 +293,54 @@ fn apply_autostart(app: &AppHandle, enable: bool) -> Result<(), String> {
     match res {
         Ok(()) => Ok(()),
         Err(e) => {
-            // The rules.json was already saved. Reverting to keep on-disk
-            // config consistent with what the OS actually does would be
-            // better; for now we surface the error so the UI can show it.
-            let msg = if enable {
-                format!(
-                    "Bloom saved, but autostart couldn't be enabled: {e}. \
-                     Check the autostart plugin docs or run as a per-user install."
-                )
-            } else {
-                format!("Bloom saved, but autostart couldn't be disabled: {e}")
-            };
-            Err(msg)
+            // Plugin failed (commonly os error 2 when the HKCU\..\Run
+            // key was deleted by Windows before any value was written
+            // to it). Fall back to direct registry write so the
+            // toggle actually works.
+            let exe = std::env::current_exe()
+                .map_err(|x| format!("autostart failed: {e}; also couldn't resolve current_exe: {x}"))?;
+            let exe_str = exe.to_string_lossy().to_string();
+            write_autostart_run_direct(enable, &exe_str)
+                .map_err(|fallback| {
+                    format!("autostart plugin error: {e}; fallback also failed: {fallback}")
+                })?;
+            Ok(())
         }
     }
+}
+
+#[cfg(windows)]
+fn write_autostart_run_direct(enable: bool, exe: &str) -> Result<(), String> {
+    use std::process::Command;
+    // Write through `reg` so we don't pull winreg as a dependency.
+    // HKCU\Software\Microsoft\Windows\CurrentVersion\Run is the standard
+    // per-user Run key; it auto-creates when a value is written.
+    let run_key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    let value_name = "Bloom";
+    let cmd_args: Vec<String> = if enable {
+        vec!["ADD".into(), run_key.into(), "/V".into(), value_name.into(),
+            "/D".into(), format!("\"{}\"", exe), "/F".into()]
+    } else {
+        vec!["DELETE".into(), run_key.into(), "/V".into(), value_name.into(), "/F".into()]
+    };
+    let out = Command::new("reg")
+        .args(&cmd_args)
+        .output()
+        .map_err(|e| format!("`reg` not on PATH: {e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let combined = format!("{}{}", stdout, stderr);
+        return Err(if combined.is_empty() {
+            format!("reg exit {}", out.status)
+        } else {
+            combined.trim().to_string()
+        });
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn write_autostart_run_direct(_enable: bool, _exe: &str) -> Result<(), String> {
+    Err("write_autostart_run_direct called on non-Windows".into())
 }
