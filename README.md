@@ -120,7 +120,7 @@ testing.
   the paste - don't type fast expansions if you're juggling a
   clipboard manager.
 
-## Architecture, in one paragraph
+## Architecture
 
 Bloom is a Tauri 2 app. The Rust core owns the global keyboard hook
 (`SetWindowsHookExW(WH_KEYBOARD_LL)` via windows-rs 0.62), a typed
@@ -128,10 +128,9 @@ character buffer, the rules store, and a JSON over IPC for the
 frontend. The frontend is plain HTML/JS - no React, no build step
 inside `dist/`. Plugins: `tauri-plugin-autostart`,
 `tauri-plugin-clipboard-manager`, `tauri-plugin-dialog`,
-`tauri-plugin-fs`, `tauri-plugin-path`. See
-[ARCHITECTURE.md](ARCHITECTURE.md) (when added) for the deep dive;
-the design spec lives in the project vault
-(see **Design source of truth** below).
+`tauri-plugin-fs`, `tauri-plugin-path`. The architecture of every
+component lives next to the code it describes (see
+[Configuration](#configuration) for the file map).
 
 ## Rebuild from source
 
@@ -229,12 +228,6 @@ cargo tauri dev
 | `src-tauri/tauri.conf.json` | Bundle config, identifier `dev.cnjackson.bloom` |
 | `dist/index.html` | Single-file HTML+SVG+CSS shell |
 | `dist/app.js` | Plain JS frontend (no build step) |
-
-## Design source of truth
-
-The project's design notes (spec, architecture, build) live in the
-author's Obsidian vault, **not in this repo**. They're separate on
-purpose: the vault documents the *why*, this repo documents the *what*.
 
 ## License
 
