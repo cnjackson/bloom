@@ -112,8 +112,10 @@ Three prefix conventions so triggers don't collide with each other:
 To import: Bloom → **Import** button → pick the file. The import
 resolves trigger conflicts via a per-rule modal (Overwrite / Skip).
 
-A copy is also at `~/Downloads/bloom-prompt-library.json` for quick
-testing.
+The fixture lives at `fixtures/ai-prompt-library.json` in this repo.
+Bloom → Import → pick the JSON. (If you want to test importing
+without going through the file dialog, the same JSON is also at
+`~/Downloads/bloom-prompt-library.json` for quick drag-and-drop.)
 
 **Adding your own:** any rule whose body contains `{{placeholder}}`
 text will paste it back literally — Bloom does not substitute. So a
